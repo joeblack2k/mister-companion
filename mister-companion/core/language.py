@@ -13,9 +13,15 @@ def app_base_path() -> Path:
     Source mode:
         project root
 
-    PyInstaller mode:
+    PyInstaller onefile mode:
+        temporary extracted bundle folder
+
+    PyInstaller onedir mode:
         folder of the compiled app/exe
     """
+    if hasattr(sys, "_MEIPASS"):
+        return Path(sys._MEIPASS)
+
     if getattr(sys, "frozen", False):
         return Path(sys.executable).resolve().parent
 
@@ -23,7 +29,24 @@ def app_base_path() -> Path:
 
 
 def languages_dir() -> Path:
-    return app_base_path() / "languages"
+    """
+    Primary location:
+        bundled /languages folder
+
+    Fallback for compiled builds:
+        external /languages folder next to the executable
+    """
+    bundled_dir = app_base_path() / "languages"
+
+    if bundled_dir.exists():
+        return bundled_dir
+
+    if getattr(sys, "frozen", False):
+        external_dir = Path(sys.executable).resolve().parent / "languages"
+        if external_dir.exists():
+            return external_dir
+
+    return bundled_dir
 
 
 def language_file_path(language_code: str) -> Path:

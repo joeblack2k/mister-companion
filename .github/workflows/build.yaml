@@ -36,6 +36,7 @@ jobs:
           pwd
           dir
           dir assets
+          dir languages
 
       - name: Build Executable
         working-directory: mister-companion
@@ -75,6 +76,7 @@ jobs:
           pwd
           ls -la
           ls -la assets
+          ls -la languages
 
       - name: Build Executable
         working-directory: mister-companion
