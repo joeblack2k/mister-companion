@@ -7,8 +7,6 @@ import zipfile
 
 import requests
 
-from core.language import tr
-
 
 GITHUB_RELEASES_API = "https://api.github.com/repos/kimchiman52/3s-mister-arm/releases/latest"
 PICO8_GITHUB_RELEASES_API = "https://api.github.com/repos/MiSTerOrganize/MiSTer_PICO-8/releases/latest"
@@ -63,10 +61,6 @@ SONIC_MANIA_INI_BLOCKS = (
 
 def _quote(value: str) -> str:
     return shlex.quote(value)
-
-
-def _unknown_lower() -> str:
-    return tr("common.unknown").lower()
 
 
 def _remote_file_exists(sftp, path: str) -> bool:
@@ -207,10 +201,10 @@ def _fetch_latest_release():
             break
 
     if not tag_name:
-        raise RuntimeError(tr("extras_tab.github_latest_3sx_failed"))
+        raise RuntimeError("Unable to determine latest 3s-mister-arm version from GitHub.")
 
     if not zip_url:
-        raise RuntimeError(tr("extras_tab.github_zip_3sx_missing"))
+        raise RuntimeError("Unable to find a ZIP asset in the latest 3s-mister-arm release.")
 
     return {
         "version": tag_name,
@@ -241,10 +235,10 @@ def _fetch_latest_pico8_release():
             break
 
     if not tag_name:
-        raise RuntimeError(tr("extras_tab.github_latest_pico8_failed"))
+        raise RuntimeError("Unable to determine latest MiSTer Pico-8 version from GitHub.")
 
     if not zip_url:
-        raise RuntimeError(tr("extras_tab.github_zip_pico8_missing"))
+        raise RuntimeError("Unable to find a ZIP asset in the latest MiSTer Pico-8 release.")
 
     return {
         "version": tag_name,
@@ -275,10 +269,10 @@ def _fetch_latest_sonic_mania_release():
             break
 
     if not tag_name:
-        raise RuntimeError(tr("extras_tab.github_latest_sonic_mania_failed"))
+        raise RuntimeError("Unable to determine latest Sonic Mania MiSTer version from GitHub.")
 
     if not zip_url:
-        raise RuntimeError(tr("extras_tab.github_zip_sonic_mania_missing"))
+        raise RuntimeError("Unable to find a ZIP asset in the latest Sonic Mania MiSTer release.")
 
     return {
         "version": tag_name,
@@ -471,39 +465,39 @@ def _migrate_old_install(connection, log):
     if not old_present:
         return False
 
-    log(tr("extras_tab.log_detected_legacy_3sx"))
+    log("Detected legacy 3SX install, migrating to 3S-ARM layout...\n")
 
     _ensure_remote_dir(connection, "/media/fat/_Other")
     _ensure_remote_dir(connection, "/media/fat/games")
 
     if _path_exists(connection, OLD_REMOTE_LAUNCHER_PATH) and not _path_exists(connection, REMOTE_LAUNCHER_PATH):
-        log(tr("extras_tab.log_renaming_launcher", old_path=OLD_REMOTE_LAUNCHER_PATH, new_path=REMOTE_LAUNCHER_PATH))
+        log(f"Renaming launcher: {OLD_REMOTE_LAUNCHER_PATH} -> {REMOTE_LAUNCHER_PATH}\n")
         connection.run_command(
             f"mv {_quote(OLD_REMOTE_LAUNCHER_PATH)} {_quote(REMOTE_LAUNCHER_PATH)}"
         )
 
     if _path_exists(connection, OLD_REMOTE_RBF_PATH) and not _path_exists(connection, REMOTE_RBF_PATH):
-        log(tr("extras_tab.log_renaming_rbf", old_path=OLD_REMOTE_RBF_PATH, new_path=REMOTE_RBF_PATH))
+        log(f"Renaming RBF: {OLD_REMOTE_RBF_PATH} -> {REMOTE_RBF_PATH}\n")
         connection.run_command(
             f"mv {_quote(OLD_REMOTE_RBF_PATH)} {_quote(REMOTE_RBF_PATH)}"
         )
 
     if _path_exists(connection, OLD_REMOTE_GAME_DIR) and not _path_exists(connection, REMOTE_GAME_DIR):
-        log(tr("extras_tab.log_renaming_game_data", old_path=OLD_REMOTE_GAME_DIR, new_path=REMOTE_GAME_DIR))
+        log(f"Renaming game data: {OLD_REMOTE_GAME_DIR} -> {REMOTE_GAME_DIR}\n")
         connection.run_command(
             f"mv {_quote(OLD_REMOTE_GAME_DIR)} {_quote(REMOTE_GAME_DIR)}"
         )
 
     if _path_exists(connection, OLD_REMOTE_VERSION_FILE) and not _path_exists(connection, REMOTE_VERSION_FILE):
         _ensure_remote_dir(connection, posixpath.dirname(REMOTE_VERSION_FILE))
-        log(tr("extras_tab.log_moving_version_marker", old_path=OLD_REMOTE_VERSION_FILE, new_path=REMOTE_VERSION_FILE))
+        log(f"Moving version marker: {OLD_REMOTE_VERSION_FILE} -> {REMOTE_VERSION_FILE}\n")
         connection.run_command(
             f"mv {_quote(OLD_REMOTE_VERSION_FILE)} {_quote(REMOTE_VERSION_FILE)}"
         )
 
     ini_changed = _ensure_ini_block(connection)
     if ini_changed:
-        log(tr("extras_tab.log_updated_ini_3sx"))
+        log("Updated MiSTer.ini to [3S-ARM]\n")
 
     if _path_exists(connection, REMOTE_LAUNCHER_PATH):
         connection.run_command(f"chmod +x {_quote(REMOTE_LAUNCHER_PATH)}")
@@ -515,7 +509,7 @@ def _migrate_old_pico8_install(connection, log):
     if not _has_pico8_rbf_in_console(connection):
         return False
 
-    log(tr("extras_tab.log_detected_legacy_pico8"))
+    log("Detected legacy MiSTer Pico-8 v1.1 install in /media/fat/_Console, migrating to /media/fat/_Other...\n")
     _ensure_remote_dir(connection, PICO8_REMOTE_RBF_DIR)
 
     connection.run_command(
@@ -538,8 +532,8 @@ def get_3sx_status(connection):
             "latest_error": "",
             "update_available": False,
             "afs_present": False,
-            "status_text": tr("common.unknown"),
-            "install_label": tr("extras_tab.install"),
+            "status_text": "Unknown",
+            "install_label": "Install",
             "install_enabled": False,
             "upload_enabled": False,
             "uninstall_enabled": False,
@@ -557,7 +551,6 @@ def get_3sx_status(connection):
     installed = _is_3sx_installed(connection)
     legacy_installed = _is_old_3sx_installed(connection)
     installed_version = _read_installed_version(connection) if (installed or legacy_installed) else ""
-
     afs_present = False
     if installed:
         afs_present = _path_exists(connection, REMOTE_AFS_PATH)
@@ -571,31 +564,27 @@ def get_3sx_status(connection):
         update_available = True
 
     if not installed and not legacy_installed:
-        status_text = tr("extras_tab.status_not_installed")
-        install_label = tr("extras_tab.install")
+        status_text = "✗ Not installed"
+        install_label = "Install"
         install_enabled = True
         upload_enabled = False
         uninstall_enabled = False
     elif legacy_installed and not installed:
-        status_text = tr("extras_tab.status_legacy_3sx")
-        install_label = tr("extras_tab.migrate_install")
+        status_text = "✓ Legacy 3SX install detected"
+        install_label = "Migrate / Install"
         install_enabled = True
         upload_enabled = not afs_present
         uninstall_enabled = True
     elif update_available:
-        status_text = tr(
-            "extras_tab.status_update_available",
-            installed_version=installed_version or _unknown_lower(),
-            latest_version=latest_version,
-        )
-        install_label = tr("extras_tab.update")
+        status_text = f"▲ Update available ({installed_version or 'unknown'} → {latest_version})"
+        install_label = "Update"
         install_enabled = True
         upload_enabled = not afs_present
         uninstall_enabled = True
     else:
-        version_display = installed_version or latest_version or _unknown_lower()
-        status_text = tr("extras_tab.status_installed_with_version", version=version_display)
-        install_label = tr("extras_tab.installed_label")
+        version_display = installed_version or latest_version or "unknown"
+        status_text = f"✓ Installed ({version_display})"
+        install_label = "Installed"
         install_enabled = False
         upload_enabled = not afs_present
         uninstall_enabled = True
@@ -623,8 +612,8 @@ def get_pico8_status(connection):
             "latest_version": "",
             "latest_error": "",
             "update_available": False,
-            "status_text": tr("common.unknown"),
-            "install_label": tr("extras_tab.install"),
+            "status_text": "Unknown",
+            "install_label": "Install",
             "install_enabled": False,
             "uninstall_enabled": False,
         }
@@ -649,28 +638,24 @@ def get_pico8_status(connection):
         update_available = True
 
     if not installed and not legacy_installed:
-        status_text = tr("extras_tab.status_not_installed")
-        install_label = tr("extras_tab.install")
+        status_text = "✗ Not installed"
+        install_label = "Install"
         install_enabled = True
         uninstall_enabled = False
     elif legacy_installed and not installed:
-        status_text = tr("extras_tab.status_legacy_pico8")
-        install_label = tr("extras_tab.migrate_install")
+        status_text = "✓ Legacy v1.1 install detected"
+        install_label = "Migrate / Install"
         install_enabled = True
         uninstall_enabled = True
     elif update_available:
-        status_text = tr(
-            "extras_tab.status_update_available",
-            installed_version=installed_version or _unknown_lower(),
-            latest_version=latest_version,
-        )
-        install_label = tr("extras_tab.update")
+        status_text = f"▲ Update available ({installed_version or 'unknown'} → {latest_version})"
+        install_label = "Update"
         install_enabled = True
         uninstall_enabled = True
     else:
-        version_display = installed_version or latest_version or _unknown_lower()
-        status_text = tr("extras_tab.status_installed_with_version", version=version_display)
-        install_label = tr("extras_tab.installed_label")
+        version_display = installed_version or latest_version or "unknown"
+        status_text = f"✓ Installed ({version_display})"
+        install_label = "Installed"
         install_enabled = False
         uninstall_enabled = True
 
@@ -696,8 +681,8 @@ def get_sonic_mania_status(connection):
             "latest_error": "",
             "update_available": False,
             "data_rsdk_present": False,
-            "status_text": tr("common.unknown"),
-            "install_label": tr("extras_tab.install"),
+            "status_text": "Unknown",
+            "install_label": "Install",
             "install_enabled": False,
             "upload_enabled": False,
             "uninstall_enabled": False,
@@ -723,25 +708,21 @@ def get_sonic_mania_status(connection):
         update_available = True
 
     if not installed:
-        status_text = tr("extras_tab.status_not_installed")
-        install_label = tr("extras_tab.install")
+        status_text = "✗ Not installed"
+        install_label = "Install"
         install_enabled = True
         upload_enabled = False
         uninstall_enabled = False
     elif update_available:
-        status_text = tr(
-            "extras_tab.status_update_available",
-            installed_version=installed_version or _unknown_lower(),
-            latest_version=latest_version,
-        )
-        install_label = tr("extras_tab.update")
+        status_text = f"▲ Update available ({installed_version or 'unknown'} → {latest_version})"
+        install_label = "Update"
         install_enabled = True
         upload_enabled = not data_rsdk_present
         uninstall_enabled = True
     else:
-        version_display = installed_version or latest_version or _unknown_lower()
-        status_text = tr("extras_tab.status_installed_with_version", version=version_display)
-        install_label = tr("extras_tab.installed_label")
+        version_display = installed_version or latest_version or "unknown"
+        status_text = f"✓ Installed ({version_display})"
+        install_label = "Installed"
         install_enabled = False
         upload_enabled = not data_rsdk_present
         uninstall_enabled = True
@@ -763,7 +744,7 @@ def get_sonic_mania_status(connection):
 
 def install_or_update_3sx(connection, log):
     if not connection.is_connected():
-        raise RuntimeError(tr("extras_tab.not_connected"))
+        raise RuntimeError("Not connected to MiSTer.")
 
     _migrate_old_install(connection, log)
 
@@ -771,21 +752,21 @@ def install_or_update_3sx(connection, log):
     version = latest["version"]
     zip_url = latest["zip_url"]
 
-    log(tr("extras_tab.log_latest_version", version=version))
-    log(tr("extras_tab.log_downloading", url=zip_url))
+    log(f"Latest version on GitHub: {version}\n")
+    log(f"Downloading: {zip_url}\n")
 
     response = requests.get(zip_url, timeout=60)
     response.raise_for_status()
     archive_data = response.content
 
-    log(tr("extras_tab.log_downloaded_bytes", bytes=len(archive_data)))
+    log(f"Downloaded {len(archive_data)} bytes.\n")
 
     with zipfile.ZipFile(io.BytesIO(archive_data)) as zf:
         members = [m for m in zf.infolist() if not m.is_dir()]
         if not members:
-            raise RuntimeError(tr("extras_tab.archive_empty_3sx"))
+            raise RuntimeError("The 3s-mister-arm ZIP archive is empty.")
 
-        log(tr("extras_tab.log_inspecting_archive"))
+        log("Inspecting archive contents...\n")
 
         payloads = []
         for member in members:
@@ -796,7 +777,7 @@ def install_or_update_3sx(connection, log):
                 continue
 
             if basename.lower() == "readme.txt":
-                log(tr("extras_tab.log_skipping_readme", name=name))
+                log(f"Skipping README: {name}\n")
                 continue
 
             payloads.append(member)
@@ -809,7 +790,7 @@ def install_or_update_3sx(connection, log):
                 data = zf.read(member)
 
                 if basename == "MiSTer_3S-ARM":
-                    log(tr("extras_tab.log_uploading_launcher", path=REMOTE_LAUNCHER_PATH))
+                    log(f"Uploading launcher: {REMOTE_LAUNCHER_PATH}\n")
                     with sftp.open(REMOTE_LAUNCHER_PATH, "wb") as remote_file:
                         remote_file.write(data)
                     continue
@@ -823,12 +804,9 @@ def install_or_update_3sx(connection, log):
                     relative = parts[idx + 1:]
                     if not relative:
                         continue
-
-                    relative_path = "/".join(relative)
                     remote_path = posixpath.join("/media/fat/_Other", *relative)
                     _ensure_remote_dir(connection, posixpath.dirname(remote_path))
-                    log(tr("extras_tab.log_merging_other", path=relative_path))
-
+                    log(f"Merging into /media/fat/_Other: {'/'.join(relative)}\n")
                     with sftp.open(remote_path, "wb") as remote_file:
                         remote_file.write(data)
                     continue
@@ -838,25 +816,21 @@ def install_or_update_3sx(connection, log):
                     relative = parts[idx + 1:]
                     if not relative:
                         continue
-
-                    relative_path = "/".join(relative)
                     remote_path = posixpath.join("/media/fat/games", *relative)
                     _ensure_remote_dir(connection, posixpath.dirname(remote_path))
-                    log(tr("extras_tab.log_merging_games", path=relative_path))
-
+                    log(f"Merging into /media/fat/games: {'/'.join(relative)}\n")
                     with sftp.open(remote_path, "wb") as remote_file:
                         remote_file.write(data)
                     continue
 
                 if basename == "3S-ARM.rbf":
                     _ensure_remote_dir(connection, "/media/fat/_Other")
-                    log(tr("extras_tab.log_uploading_rbf", path=REMOTE_RBF_PATH))
-
+                    log(f"Uploading RBF: {REMOTE_RBF_PATH}\n")
                     with sftp.open(REMOTE_RBF_PATH, "wb") as remote_file:
                         remote_file.write(data)
                     continue
 
-                log(tr("extras_tab.log_skipping_unhandled_file", name=name))
+                log(f"Skipping unhandled file: {name}\n")
 
         finally:
             sftp.close()
@@ -865,12 +839,12 @@ def install_or_update_3sx(connection, log):
 
     ini_added = _ensure_ini_block(connection)
     if ini_added:
-        log(tr("extras_tab.log_ini_3sx_added"))
+        log("Added [3S-ARM] block to MiSTer.ini\n")
     else:
-        log(tr("extras_tab.log_ini_3sx_already_present"))
+        log("[3S-ARM] block already present in MiSTer.ini\n")
 
     _write_installed_version(connection, version)
-    log(tr("extras_tab.log_stored_version_marker", version=version))
+    log(f"Stored installed version marker: {version}\n")
 
     return {
         "installed_version": version,
@@ -879,7 +853,7 @@ def install_or_update_3sx(connection, log):
 
 def install_or_update_pico8(connection, log):
     if not connection.is_connected():
-        raise RuntimeError(tr("extras_tab.not_connected"))
+        raise RuntimeError("Not connected to MiSTer.")
 
     _migrate_old_pico8_install(connection, log)
 
@@ -887,21 +861,21 @@ def install_or_update_pico8(connection, log):
     version = latest["version"]
     zip_url = latest["zip_url"]
 
-    log(tr("extras_tab.log_latest_version", version=version))
-    log(tr("extras_tab.log_downloading", url=zip_url))
+    log(f"Latest version on GitHub: {version}\n")
+    log(f"Downloading: {zip_url}\n")
 
     response = requests.get(zip_url, timeout=60)
     response.raise_for_status()
     archive_data = response.content
 
-    log(tr("extras_tab.log_downloaded_bytes", bytes=len(archive_data)))
+    log(f"Downloaded {len(archive_data)} bytes.\n")
 
     with zipfile.ZipFile(io.BytesIO(archive_data)) as zf:
         members = [m for m in zf.infolist() if not m.is_dir()]
         if not members:
-            raise RuntimeError(tr("extras_tab.archive_empty_pico8"))
+            raise RuntimeError("The MiSTer Pico-8 ZIP archive is empty.")
 
-        log(tr("extras_tab.log_inspecting_archive"))
+        log("Inspecting archive contents...\n")
 
         rbf_member = None
         input_map_member = None
@@ -960,7 +934,7 @@ def install_or_update_pico8(connection, log):
 
         if missing:
             raise RuntimeError(
-                tr("extras_tab.archive_missing_pico8_files", files="\n- ".join(missing))
+                "The MiSTer Pico-8 ZIP archive is missing required files:\n- " + "\n- ".join(missing)
             )
 
         _ensure_remote_dir(connection, PICO8_REMOTE_RBF_DIR)
@@ -972,13 +946,13 @@ def install_or_update_pico8(connection, log):
         _ensure_remote_dir(connection, PICO8_REMOTE_SCRIPTS_DIR)
         _ensure_remote_dir(connection, PICO8_REMOTE_INPUTS_DIR)
 
-        log(tr("extras_tab.log_remove_old_pico8_other"))
+        log("Removing old PICO-8 RBF files from /media/fat/_Other...\n")
         _remove_glob(connection, "/media/fat/_Other/PICO-8_*.rbf")
 
-        log(tr("extras_tab.log_remove_legacy_pico8_console"))
+        log("Removing legacy PICO-8 RBF files from /media/fat/_Console...\n")
         _remove_glob(connection, "/media/fat/_Console/PICO-8_*.rbf")
 
-        log(tr("extras_tab.log_remove_old_pico8_input_maps"))
+        log("Removing old PICO-8 input map files...\n")
         _remove_glob(connection, "/media/fat/config/inputs/PICO-8_input_*.map")
 
         uploads = [
@@ -995,7 +969,6 @@ def install_or_update_pico8(connection, log):
             (readme_member, PICO8_REMOTE_README_PATH),
             (install_script_member, PICO8_REMOTE_INSTALL_SCRIPT_PATH),
         ]
-
         if input_map_member is not None:
             uploads.insert(
                 1,
@@ -1012,8 +985,7 @@ def install_or_update_pico8(connection, log):
         try:
             for member, destination in uploads:
                 data = zf.read(member)
-                log(tr("extras_tab.log_uploading_path", path=destination))
-
+                log(f"Uploading {destination}\n")
                 with sftp.open(destination, "wb") as remote_file:
                     remote_file.write(data)
         finally:
@@ -1028,14 +1000,13 @@ def install_or_update_pico8(connection, log):
         PICO8_REMOTE_USER_STARTUP_PATH,
         PICO8_DAEMON_STARTUP_LINE,
     )
-
     if added_startup:
-        log(tr("extras_tab.log_pico8_startup_added"))
+        log("Added pico8_daemon.sh entry to user-startup.sh\n")
     else:
-        log(tr("extras_tab.log_pico8_startup_already_present"))
+        log("pico8_daemon.sh entry already present in user-startup.sh\n")
 
     _write_installed_pico8_version(connection, version)
-    log(tr("extras_tab.log_stored_version_marker", version=version))
+    log(f"Stored installed version marker: {version}\n")
 
     return {
         "installed_version": version,
@@ -1044,27 +1015,27 @@ def install_or_update_pico8(connection, log):
 
 def install_or_update_sonic_mania(connection, log):
     if not connection.is_connected():
-        raise RuntimeError(tr("extras_tab.not_connected"))
+        raise RuntimeError("Not connected to MiSTer.")
 
     latest = _fetch_latest_sonic_mania_release()
     version = latest["version"]
     zip_url = latest["zip_url"]
 
-    log(tr("extras_tab.log_latest_version", version=version))
-    log(tr("extras_tab.log_downloading", url=zip_url))
+    log(f"Latest version on GitHub: {version}\n")
+    log(f"Downloading: {zip_url}\n")
 
     response = requests.get(zip_url, timeout=60)
     response.raise_for_status()
     archive_data = response.content
 
-    log(tr("extras_tab.log_downloaded_bytes", bytes=len(archive_data)))
+    log(f"Downloaded {len(archive_data)} bytes.\n")
 
     with zipfile.ZipFile(io.BytesIO(archive_data)) as zf:
         members = [m for m in zf.infolist() if not m.is_dir()]
         if not members:
-            raise RuntimeError(tr("extras_tab.archive_empty_sonic_mania"))
+            raise RuntimeError("The Sonic Mania MiSTer ZIP archive is empty.")
 
-        log(tr("extras_tab.log_inspecting_archive"))
+        log("Inspecting archive contents...\n")
 
         payloads = []
         for member in members:
@@ -1076,7 +1047,7 @@ def install_or_update_sonic_mania(connection, log):
                 continue
 
             if lower_basename in ("readme.txt", "readme.md", "license.txt", "license.md"):
-                log(tr("extras_tab.log_skipping_documentation", name=name))
+                log(f"Skipping documentation file: {name}\n")
                 continue
 
             payloads.append(member)
@@ -1086,7 +1057,7 @@ def install_or_update_sonic_mania(connection, log):
             _ensure_remote_dir(connection, SONIC_MANIA_REMOTE_RBF_DIR)
             _ensure_remote_dir(connection, SONIC_MANIA_REMOTE_GAME_DIR)
 
-            log(tr("extras_tab.log_remove_old_sonic_rbf"))
+            log("Removing old Sonic Mania RBF files from /media/fat/_Other...\n")
             _remove_glob(connection, "/media/fat/_Other/Sonic_Mania*.rbf")
 
             for member in payloads:
@@ -1095,8 +1066,7 @@ def install_or_update_sonic_mania(connection, log):
                 data = zf.read(member)
 
                 if basename == "MiSTer_SonicMania":
-                    log(tr("extras_tab.log_uploading_launcher", path=SONIC_MANIA_REMOTE_LAUNCHER_PATH))
-
+                    log(f"Uploading launcher: {SONIC_MANIA_REMOTE_LAUNCHER_PATH}\n")
                     with sftp.open(SONIC_MANIA_REMOTE_LAUNCHER_PATH, "wb") as remote_file:
                         remote_file.write(data)
                     continue
@@ -1110,12 +1080,9 @@ def install_or_update_sonic_mania(connection, log):
                     relative = parts[idx + 1:]
                     if not relative:
                         continue
-
-                    relative_path = "/".join(relative)
                     remote_path = posixpath.join("/media/fat/_Other", *relative)
                     _ensure_remote_dir(connection, posixpath.dirname(remote_path))
-                    log(tr("extras_tab.log_merging_other", path=relative_path))
-
+                    log(f"Merging into /media/fat/_Other: {'/'.join(relative)}\n")
                     with sftp.open(remote_path, "wb") as remote_file:
                         remote_file.write(data)
                     continue
@@ -1127,19 +1094,17 @@ def install_or_update_sonic_mania(connection, log):
                         continue
 
                     if relative == ["sonic-mania", "Data.rsdk"]:
-                        log(tr("extras_tab.log_skip_bundled_data_rsdk"))
+                        log("Skipping bundled Data.rsdk placeholder. Use Upload Data.rsdk instead.\n")
                         continue
 
-                    relative_path = "/".join(relative)
                     remote_path = posixpath.join("/media/fat/games", *relative)
                     _ensure_remote_dir(connection, posixpath.dirname(remote_path))
-                    log(tr("extras_tab.log_merging_games", path=relative_path))
-
+                    log(f"Merging into /media/fat/games: {'/'.join(relative)}\n")
                     with sftp.open(remote_path, "wb") as remote_file:
                         remote_file.write(data)
                     continue
 
-                log(tr("extras_tab.log_skipping_unhandled_file", name=name))
+                log(f"Skipping unhandled file: {name}\n")
 
         finally:
             sftp.close()
@@ -1150,12 +1115,12 @@ def install_or_update_sonic_mania(connection, log):
 
     ini_added = _ensure_sonic_mania_ini_blocks(connection)
     if ini_added:
-        log(tr("extras_tab.log_sonic_ini_added"))
+        log("Added Sonic Mania blocks to MiSTer.ini\n")
     else:
-        log(tr("extras_tab.log_sonic_ini_already_present"))
+        log("Sonic Mania blocks already present in MiSTer.ini\n")
 
     _write_installed_sonic_mania_version(connection, version)
-    log(tr("extras_tab.log_stored_version_marker", version=version))
+    log(f"Stored installed version marker: {version}\n")
 
     return {
         "installed_version": version,
@@ -1164,17 +1129,17 @@ def install_or_update_sonic_mania(connection, log):
 
 def upload_3sx_afs(connection, local_path: str, log):
     if not connection.is_connected():
-        raise RuntimeError(tr("extras_tab.not_connected"))
+        raise RuntimeError("Not connected to MiSTer.")
 
     if not os.path.isfile(local_path):
-        raise RuntimeError(tr("extras_tab.selected_afs_missing"))
+        raise RuntimeError("Selected SF33RD.AFS file does not exist.")
 
     local_name = os.path.basename(local_path)
     if local_name.lower() != "sf33rd.afs":
-        log(tr("extras_tab.warning_selected_afs_name", name=local_name))
+        log(f"Warning: selected file name is {local_name}, expected SF33RD.AFS\n")
 
     if not (_is_3sx_installed(connection) or _is_old_3sx_installed(connection)):
-        raise RuntimeError(tr("extras_tab.threesx_not_installed"))
+        raise RuntimeError("3s-mister-arm is not installed.")
 
     if _is_3sx_installed(connection):
         target_resources_dir = REMOTE_RESOURCES_DIR
@@ -1186,15 +1151,14 @@ def upload_3sx_afs(connection, local_path: str, log):
     _ensure_remote_dir(connection, target_resources_dir)
 
     file_size = os.path.getsize(local_path)
-    log(tr("extras_tab.log_uploading_asset", path=target_afs_path))
-    log(tr("extras_tab.log_file_size", bytes=file_size))
+    log(f"Uploading asset to {target_afs_path}\n")
+    log(f"File size: {file_size} bytes\n")
 
     last_percent = {"value": -1}
 
     def progress_callback(transferred, total):
         if total <= 0:
             return
-
         percent = int((transferred / total) * 100)
         if percent != last_percent["value"]:
             last_percent["value"] = percent
@@ -1206,36 +1170,35 @@ def upload_3sx_afs(connection, local_path: str, log):
     finally:
         sftp.close()
 
-    log(tr("extras_tab.log_upload_completed"))
+    log("Upload completed.\n")
     return {"afs_present": True}
 
 
 def upload_sonic_mania_data_rsdk(connection, local_path: str, log):
     if not connection.is_connected():
-        raise RuntimeError(tr("extras_tab.not_connected"))
+        raise RuntimeError("Not connected to MiSTer.")
 
     if not os.path.isfile(local_path):
-        raise RuntimeError(tr("extras_tab.selected_data_rsdk_missing"))
+        raise RuntimeError("Selected Data.rsdk file does not exist.")
 
     local_name = os.path.basename(local_path)
     if local_name.lower() != "data.rsdk":
-        log(tr("extras_tab.warning_selected_data_rsdk_name", name=local_name))
+        log(f"Warning: selected file name is {local_name}, expected Data.rsdk\n")
 
     if not _is_sonic_mania_installed(connection):
-        raise RuntimeError(tr("extras_tab.sonic_mania_not_installed"))
+        raise RuntimeError("Sonic Mania MiSTer is not installed.")
 
     _ensure_remote_dir(connection, SONIC_MANIA_REMOTE_GAME_DIR)
 
     file_size = os.path.getsize(local_path)
-    log(tr("extras_tab.log_uploading_data_rsdk", path=SONIC_MANIA_REMOTE_DATA_RSDK_PATH))
-    log(tr("extras_tab.log_file_size", bytes=file_size))
+    log(f"Uploading Data.rsdk to {SONIC_MANIA_REMOTE_DATA_RSDK_PATH}\n")
+    log(f"File size: {file_size} bytes\n")
 
     last_percent = {"value": -1}
 
     def progress_callback(transferred, total):
         if total <= 0:
             return
-
         percent = int((transferred / total) * 100)
         if percent != last_percent["value"]:
             last_percent["value"] = percent
@@ -1247,79 +1210,79 @@ def upload_sonic_mania_data_rsdk(connection, local_path: str, log):
     finally:
         sftp.close()
 
-    log(tr("extras_tab.log_upload_completed"))
+    log("Upload completed.\n")
     return {"data_rsdk_present": True}
 
 
 def uninstall_3sx(connection, log):
     if not connection.is_connected():
-        raise RuntimeError(tr("extras_tab.not_connected"))
+        raise RuntimeError("Not connected to MiSTer.")
 
-    log(tr("extras_tab.log_removing_path", path=REMOTE_RBF_PATH))
+    log(f"Removing {REMOTE_RBF_PATH}\n")
     connection.run_command(f"rm -f {_quote(REMOTE_RBF_PATH)}")
 
-    log(tr("extras_tab.log_removing_path", path=REMOTE_LAUNCHER_PATH))
+    log(f"Removing {REMOTE_LAUNCHER_PATH}\n")
     connection.run_command(f"rm -f {_quote(REMOTE_LAUNCHER_PATH)}")
 
     if _path_exists(connection, REMOTE_VERSION_FILE):
-        log(tr("extras_tab.log_removing_version_marker", path=REMOTE_VERSION_FILE))
+        log(f"Removing version marker: {REMOTE_VERSION_FILE}\n")
         connection.run_command(f"rm -f {_quote(REMOTE_VERSION_FILE)}")
 
-    log(tr("extras_tab.log_removing_path", path=REMOTE_GAME_DIR))
+    log(f"Removing {REMOTE_GAME_DIR}\n")
     connection.run_command(f"rm -rf {_quote(REMOTE_GAME_DIR)}")
 
-    log(tr("extras_tab.log_removing_legacy_path", path=OLD_REMOTE_RBF_PATH))
+    log(f"Removing legacy {OLD_REMOTE_RBF_PATH}\n")
     connection.run_command(f"rm -f {_quote(OLD_REMOTE_RBF_PATH)}")
 
-    log(tr("extras_tab.log_removing_legacy_path", path=OLD_REMOTE_LAUNCHER_PATH))
+    log(f"Removing legacy {OLD_REMOTE_LAUNCHER_PATH}\n")
     connection.run_command(f"rm -f {_quote(OLD_REMOTE_LAUNCHER_PATH)}")
 
     if _path_exists(connection, OLD_REMOTE_VERSION_FILE):
-        log(tr("extras_tab.log_removing_legacy_version_marker", path=OLD_REMOTE_VERSION_FILE))
+        log(f"Removing legacy version marker: {OLD_REMOTE_VERSION_FILE}\n")
         connection.run_command(f"rm -f {_quote(OLD_REMOTE_VERSION_FILE)}")
 
-    log(tr("extras_tab.log_removing_legacy_path", path=OLD_REMOTE_GAME_DIR))
+    log(f"Removing legacy {OLD_REMOTE_GAME_DIR}\n")
     connection.run_command(f"rm -rf {_quote(OLD_REMOTE_GAME_DIR)}")
 
     removed_ini = _remove_ini_block(connection)
     if removed_ini:
-        log(tr("extras_tab.log_removed_3sx_ini"))
+        log("Removed 3S-ARM / 3SX block from MiSTer.ini\n")
     else:
-        log(tr("extras_tab.log_no_3sx_ini_found"))
+        log("No 3S-ARM / 3SX block found in MiSTer.ini\n")
 
     return {"uninstalled": True}
 
 
 def uninstall_pico8(connection, log):
     if not connection.is_connected():
-        raise RuntimeError(tr("extras_tab.not_connected"))
+        raise RuntimeError("Not connected to MiSTer.")
 
-    log(tr("extras_tab.log_removing_pico8_other"))
+    log("Removing PICO-8 RBF files from /media/fat/_Other\n")
     _remove_glob(connection, "/media/fat/_Other/PICO-8_*.rbf")
 
-    log(tr("extras_tab.log_removing_pico8_console"))
+    log("Removing legacy PICO-8 RBF files from /media/fat/_Console\n")
     _remove_glob(connection, "/media/fat/_Console/PICO-8_*.rbf")
 
-    log(tr("extras_tab.log_removing_path", path=PICO8_REMOTE_BINARY_PATH))
+    log(f"Removing {PICO8_REMOTE_BINARY_PATH}\n")
     connection.run_command(f"rm -f {_quote(PICO8_REMOTE_BINARY_PATH)}")
 
-    log(tr("extras_tab.log_removing_path", path=PICO8_REMOTE_DAEMON_PATH))
+    log(f"Removing {PICO8_REMOTE_DAEMON_PATH}\n")
     connection.run_command(f"rm -f {_quote(PICO8_REMOTE_DAEMON_PATH)}")
 
-    log(tr("extras_tab.log_removing_path", path=PICO8_REMOTE_BOOTROM_PATH))
+    log(f"Removing {PICO8_REMOTE_BOOTROM_PATH}\n")
     connection.run_command(f"rm -f {_quote(PICO8_REMOTE_BOOTROM_PATH)}")
 
-    log(tr("extras_tab.log_removing_path", path=PICO8_REMOTE_README_PATH))
+    log(f"Removing {PICO8_REMOTE_README_PATH}\n")
     connection.run_command(f"rm -f {_quote(PICO8_REMOTE_README_PATH)}")
 
-    log(tr("extras_tab.log_removing_path", path=PICO8_REMOTE_INSTALL_SCRIPT_PATH))
+    log(f"Removing {PICO8_REMOTE_INSTALL_SCRIPT_PATH}\n")
     connection.run_command(f"rm -f {_quote(PICO8_REMOTE_INSTALL_SCRIPT_PATH)}")
 
-    log(tr("extras_tab.log_removing_pico8_input_maps"))
+    log("Removing PICO-8 input map files from /media/fat/config/inputs\n")
     _remove_glob(connection, "/media/fat/config/inputs/PICO-8_input_*.map")
 
     if _path_exists(connection, PICO8_REMOTE_VERSION_FILE):
-        log(tr("extras_tab.log_removing_version_marker", path=PICO8_REMOTE_VERSION_FILE))
+        log(f"Removing version marker: {PICO8_REMOTE_VERSION_FILE}\n")
         connection.run_command(f"rm -f {_quote(PICO8_REMOTE_VERSION_FILE)}")
 
     removed_startup = _remove_startup_line(
@@ -1327,11 +1290,10 @@ def uninstall_pico8(connection, log):
         PICO8_REMOTE_USER_STARTUP_PATH,
         PICO8_DAEMON_STARTUP_LINE,
     )
-
     if removed_startup:
-        log(tr("extras_tab.log_pico8_startup_removed"))
+        log("Removed pico8_daemon.sh entry from user-startup.sh\n")
     else:
-        log(tr("extras_tab.log_pico8_startup_not_found"))
+        log("No pico8_daemon.sh entry found in user-startup.sh\n")
 
     _remove_if_empty_dir(connection, PICO8_REMOTE_DOCS_DIR)
     _remove_if_empty_dir(connection, PICO8_REMOTE_GAME_DIR)
@@ -1344,25 +1306,25 @@ def uninstall_pico8(connection, log):
 
 def uninstall_sonic_mania(connection, log):
     if not connection.is_connected():
-        raise RuntimeError(tr("extras_tab.not_connected"))
+        raise RuntimeError("Not connected to MiSTer.")
 
-    log(tr("extras_tab.log_removing_sonic_rbf"))
+    log("Removing Sonic Mania RBF files from /media/fat/_Other\n")
     _remove_glob(connection, "/media/fat/_Other/Sonic_Mania*.rbf")
 
-    log(tr("extras_tab.log_removing_path", path=SONIC_MANIA_REMOTE_LAUNCHER_PATH))
+    log(f"Removing {SONIC_MANIA_REMOTE_LAUNCHER_PATH}\n")
     connection.run_command(f"rm -f {_quote(SONIC_MANIA_REMOTE_LAUNCHER_PATH)}")
 
     if _path_exists(connection, SONIC_MANIA_REMOTE_VERSION_FILE):
-        log(tr("extras_tab.log_removing_version_marker", path=SONIC_MANIA_REMOTE_VERSION_FILE))
+        log(f"Removing version marker: {SONIC_MANIA_REMOTE_VERSION_FILE}\n")
         connection.run_command(f"rm -f {_quote(SONIC_MANIA_REMOTE_VERSION_FILE)}")
 
-    log(tr("extras_tab.log_removing_path", path=SONIC_MANIA_REMOTE_GAME_DIR))
+    log(f"Removing {SONIC_MANIA_REMOTE_GAME_DIR}\n")
     connection.run_command(f"rm -rf {_quote(SONIC_MANIA_REMOTE_GAME_DIR)}")
 
     removed_ini = _remove_sonic_mania_ini_blocks(connection)
     if removed_ini:
-        log(tr("extras_tab.log_sonic_ini_removed"))
+        log("Removed Sonic Mania blocks from MiSTer.ini\n")
     else:
-        log(tr("extras_tab.log_sonic_ini_not_found"))
+        log("No Sonic Mania blocks found in MiSTer.ini\n")
 
     return {"uninstalled": True}

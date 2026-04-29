@@ -2,12 +2,10 @@ import os
 import subprocess
 import sys
 
-from core.language import tr
-
 
 def open_mister_share(ip, username="root", password="1"):
     if not ip:
-        raise ValueError(tr("device_core.no_mister_ip"))
+        raise ValueError("No MiSTer IP address is available.")
 
     if sys.platform.startswith("win"):
         subprocess.Popen(["explorer", f"\\\\{ip}\\"])
@@ -47,4 +45,4 @@ def open_mister_share(ip, username="root", password="1"):
         subprocess.Popen(["open", os.path.join(home, "MiSTer_sdcard")])
         return
 
-    raise RuntimeError(tr("device_core.unsupported_platform", platform=sys.platform))
+    raise RuntimeError(f"Unsupported platform: {sys.platform}")

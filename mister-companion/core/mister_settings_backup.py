@@ -3,7 +3,6 @@ import subprocess
 import sys
 import time
 
-from core.language import tr
 from core.profile_folder_sync import sanitize_folder_name, ip_to_folder_name
 
 
@@ -16,7 +15,7 @@ def ensure_settings_root_exists():
 
 def get_mister_settings_device_name(profile_name, host):
     profile_name = (profile_name or "").strip()
-    if profile_name and profile_name != tr("connection_tab.select_device"):
+    if profile_name and profile_name != "Select Device":
         return sanitize_folder_name(profile_name)
 
     host = (host or "").strip()
@@ -60,21 +59,21 @@ def open_mister_settings_folder(path):
 
 def ensure_mister_ini_exists(connection):
     if not connection.is_connected():
-        return False, tr("connection.not_connected")
+        return False, "Not connected"
 
     ini_exists = connection.run_command('test -f /media/fat/MiSTer.ini && echo EXISTS')
     if "EXISTS" in (ini_exists or ""):
-        return True, tr("mister_settings_backup.mister_ini_exists")
+        return True, "MiSTer.ini exists"
 
     example_exists = connection.run_command('test -f /media/fat/MiSTer_example.ini && echo EXISTS')
     if "EXISTS" not in (example_exists or ""):
-        return False, tr("mister_settings_backup.no_mister_ini_or_example")
+        return False, "Neither MiSTer.ini nor MiSTer_example.ini exists."
 
     result = connection.run_command('cp /media/fat/MiSTer_example.ini /media/fat/MiSTer.ini && echo COPIED')
     if "COPIED" in (result or ""):
-        return True, tr("mister_settings_backup.mister_ini_created_from_example")
+        return True, "MiSTer.ini created from MiSTer_example.ini"
 
-    return False, tr("mister_settings_backup.unable_to_create_mister_ini")
+    return False, "Unable to create MiSTer.ini from MiSTer_example.ini"
 
 
 def enforce_mister_settings_retention(device_path, retention):
@@ -111,7 +110,7 @@ def create_mister_settings_backup(connection, device_path, retention):
         sftp.close()
 
     enforce_mister_settings_retention(device_path, retention)
-    return True, tr("mister_settings_backup.backup_created"), backup_file
+    return True, "Backup created", backup_file
 
 
 def list_mister_settings_backups(device_path):

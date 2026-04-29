@@ -1,7 +1,5 @@
 import paramiko
 
-from core.language import tr
-
 
 class MiSTerConnection:
     def __init__(self):
@@ -17,7 +15,7 @@ class MiSTerConnection:
         self.password = password
 
         if not host:
-            raise ValueError(tr("messages.ip_required", default="IP Address is required."))
+            raise ValueError("IP address is required")
 
         try:
             if self.client:
@@ -89,7 +87,7 @@ class MiSTerConnection:
 
     def run_command(self, command):
         if not self.is_connected():
-            raise RuntimeError(tr("connection.not_connected", default="Not connected"))
+            raise RuntimeError("Not connected")
 
         try:
             stdin, stdout, stderr = self.client.exec_command(command)
@@ -108,14 +106,14 @@ class MiSTerConnection:
 
     def run_command_stream(self, command, callback):
         if not self.is_connected():
-            raise RuntimeError(tr("connection.not_connected", default="Not connected"))
+            raise RuntimeError("Not connected")
 
         try:
             stdin, stdout, stderr = self.client.exec_command(command)
 
             while True:
                 if not self.is_connected():
-                    callback(tr("connection.connection_closed", default="\nConnection closed.\n"))
+                    callback("\nConnection closed.\n")
                     return
 
                 line = stdout.readline()
@@ -125,12 +123,12 @@ class MiSTerConnection:
 
             err_output = stderr.read().decode("utf-8", errors="ignore")
             if err_output.strip():
-                callback(tr("connection.command_output_header", default="\nCommand output:\n"))
+                callback("\n[stderr]\n")
                 callback(err_output)
 
         except Exception:
             self.mark_disconnected()
-            callback(tr("connection.connection_closed", default="\nConnection closed.\n"))
+            callback("\nConnection closed.\n")
             return
 
     # =============================
@@ -139,7 +137,7 @@ class MiSTerConnection:
 
     def reboot(self):
         if not self.is_connected():
-            raise RuntimeError(tr("connection.not_connected", default="Not connected"))
+            raise RuntimeError("Not connected")
 
         self.run_command("nohup /sbin/reboot >/dev/null 2>&1 &")
         self.mark_disconnected()

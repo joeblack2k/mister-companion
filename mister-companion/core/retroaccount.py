@@ -2,8 +2,6 @@ import json
 
 import requests
 
-from core.language import tr
-
 
 RETROACCOUNT_BASE_URL = "https://retroaccount.com"
 RETROACCOUNT_CLIENT_ID = "mister-companion"
@@ -17,14 +15,14 @@ def _extract_user_code(payload):
     value = payload.get("user_code")
     if value:
         return str(value)
-    raise RuntimeError(tr("retroaccount.user_code_missing"))
+    raise RuntimeError("RetroAccount response did not include user_code.")
 
 
 def _extract_device_code(payload):
     value = payload.get("device_code")
     if value:
         return str(value)
-    raise RuntimeError(tr("retroaccount.device_code_missing"))
+    raise RuntimeError("RetroAccount response did not include device_code.")
 
 
 def _api_post(path, payload):
@@ -38,7 +36,7 @@ def _ensure_remote_dir(connection):
 
 def _write_remote_text(connection, path, text):
     if not connection.is_connected():
-        raise RuntimeError(tr("connection.not_connected"))
+        raise RuntimeError("Not connected")
 
     _ensure_remote_dir(connection)
 
@@ -52,22 +50,19 @@ def _write_remote_text(connection, path, text):
 
 def _read_remote_text(connection, path):
     if not connection.is_connected():
-        raise RuntimeError(tr("connection.not_connected"))
+        raise RuntimeError("Not connected")
 
     sftp = connection.client.open_sftp()
     try:
         with sftp.file(path, "r") as f:
-            data = f.read()
-            if isinstance(data, bytes):
-                return data.decode("utf-8", errors="ignore")
-            return str(data)
+            return f.read().decode("utf-8", errors="ignore")
     finally:
         sftp.close()
 
 
 def _remote_exists(connection, path):
     if not connection.is_connected():
-        raise RuntimeError(tr("connection.not_connected"))
+        raise RuntimeError("Not connected")
 
     sftp = connection.client.open_sftp()
     try:
@@ -100,7 +95,7 @@ def get_retroaccount_status(connection):
 
 def start_retroaccount_login(connection):
     if not connection.is_connected():
-        raise RuntimeError(tr("connection.not_connected"))
+        raise RuntimeError("Not connected")
 
     request_payload = {
         "client_id": RETROACCOUNT_CLIENT_ID,
@@ -120,17 +115,10 @@ def start_retroaccount_login(connection):
         response_text = response.text.strip()
         if response_text:
             raise RuntimeError(
-                tr(
-                    "retroaccount.code_request_failed_with_body",
-                    status=response.status_code,
-                    body=response_text,
-                )
+                f"RetroAccount code request failed with status {response.status_code}.\n{response_text}"
             )
         raise RuntimeError(
-            tr(
-                "retroaccount.code_request_failed",
-                status=response.status_code,
-            )
+            f"RetroAccount code request failed with status {response.status_code}."
         )
 
     payload = response.json()
@@ -147,7 +135,7 @@ def start_retroaccount_login(connection):
 
 def poll_retroaccount_login(connection, device_code):
     if not connection.is_connected():
-        raise RuntimeError(tr("connection.not_connected"))
+        raise RuntimeError("Not connected")
 
     response = _api_post(
         "/api/auth/token",
@@ -166,27 +154,20 @@ def poll_retroaccount_login(connection, device_code):
         response_text = response.text.strip()
         if response_text:
             raise RuntimeError(
-                tr(
-                    "retroaccount.token_request_failed_with_body",
-                    status=response.status_code,
-                    body=response_text,
-                )
+                f"RetroAccount token request failed with status {response.status_code}.\n{response_text}"
             )
         raise RuntimeError(
-            tr(
-                "retroaccount.token_request_failed",
-                status=response.status_code,
-            )
+            f"RetroAccount token request failed with status {response.status_code}."
         )
 
     payload = response.json()
     credentials = payload.get("credentials")
     if not isinstance(credentials, dict):
-        raise RuntimeError(tr("retroaccount.credentials_missing"))
+        raise RuntimeError("RetroAccount response did not include a credentials object.")
 
     device_id = credentials.get("device_id")
     if not device_id:
-        raise RuntimeError(tr("retroaccount.device_id_missing"))
+        raise RuntimeError("RetroAccount credentials did not include device_id.")
 
     credentials_json = json.dumps(credentials, indent=2, ensure_ascii=False)
 

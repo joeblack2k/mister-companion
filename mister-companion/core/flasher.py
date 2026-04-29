@@ -16,8 +16,6 @@ from typing import Callable
 
 import requests
 
-from core.language import tr
-
 try:
     import winreg
 except ImportError:
@@ -90,7 +88,7 @@ def get_arch_key() -> str:
     if machine in {"aarch64", "arm64"}:
         return "arm64"
 
-    raise RuntimeError(tr("flash_tools.unsupported_arch", machine=machine))
+    raise RuntimeError(f"Unsupported CPU architecture: {machine}")
 
 
 def _clean_subprocess_env() -> dict[str, str]:
@@ -197,7 +195,7 @@ def _disable_windows_autoplay(log_callback: LogCallback | None = None) -> int | 
         return None
 
     original_value = _get_windows_autoplay_value()
-    _log(log_callback, tr("flash_tools.disable_windows_autoplay"))
+    _log(log_callback, "Temporarily disabling Windows AutoPlay...")
     _set_windows_autoplay_value(0xFF)
     return original_value
 
@@ -213,7 +211,7 @@ def _restore_windows_autoplay(
         _delete_windows_autoplay_value()
         return
 
-    _log(log_callback, tr("flash_tools.windows_settings_restored"))
+    _log(log_callback, "Windows settings restored")
     _set_windows_autoplay_value(original_value)
 
 
@@ -222,13 +220,22 @@ def _ensure_flash_privileges() -> None:
 
     if system == "Windows":
         if not is_admin_windows():
-            raise RuntimeError(tr("flash_tools.admin_required_windows"))
+            raise RuntimeError(
+                "Administrator privileges are required to flash an SD card.\n\n"
+                "Please restart MiSTer Companion as Administrator and try again."
+            )
 
     elif system == "Linux":
         if not is_root_linux():
             if shutil.which("pkexec"):
-                raise RuntimeError(tr("flash_tools.root_required_pkexec"))
-            raise RuntimeError(tr("flash_tools.root_required_sudo"))
+                raise RuntimeError(
+                    "Root privileges are required to flash an SD card.\n\n"
+                    "Please run MiSTer Companion with pkexec or sudo and try again."
+                )
+            raise RuntimeError(
+                "Root privileges are required to flash an SD card.\n\n"
+                "Please run MiSTer Companion with sudo and try again."
+            )
 
 
 def ensure_tools_dirs(log_callback: LogCallback | None = None) -> None:
@@ -236,7 +243,7 @@ def ensure_tools_dirs(log_callback: LogCallback | None = None) -> None:
     BALENA_DIR.mkdir(parents=True, exist_ok=True)
     MR_FUSION_DIR.mkdir(parents=True, exist_ok=True)
     SUPERSTATION_DIR.mkdir(parents=True, exist_ok=True)
-    _log(log_callback, tr("flash_tools.using_tools_dir", path=TOOLS_DIR))
+    _log(log_callback, f"Using tools directory: {TOOLS_DIR}")
 
 
 def _get_session() -> requests.Session:
@@ -259,7 +266,7 @@ def _download_file(
     log_callback: LogCallback | None = None,
 ) -> Path:
     dest_path.parent.mkdir(parents=True, exist_ok=True)
-    _log(log_callback, tr("flash_tools.downloading", name=dest_path.name))
+    _log(log_callback, f"Downloading {dest_path.name}...")
 
     session = _get_session()
     with session.get(url, stream=True, timeout=120) as response:
@@ -281,16 +288,9 @@ def _download_file(
                     percent = int((written_bytes / total_bytes) * 100)
                     if percent >= last_logged_percent + 10:
                         last_logged_percent = percent
-                        _log(
-                            log_callback,
-                            tr(
-                                "flash_tools.download_percent",
-                                name=dest_path.name,
-                                percent=percent,
-                            ),
-                        )
+                        _log(log_callback, f"{dest_path.name}: {percent}%")
 
-    _log(log_callback, tr("flash_tools.finished_downloading", name=dest_path.name))
+    _log(log_callback, f"Finished downloading {dest_path.name}")
     return dest_path
 
 
@@ -318,7 +318,7 @@ def _safe_extract_tar(archive_path: Path, dest_dir: Path) -> None:
             member_path = dest_dir / member.name
             resolved_member = member_path.resolve()
             if not str(resolved_member).startswith(str(resolved_dest)):
-                raise RuntimeError(tr("flash_tools.unsafe_tar_path", name=member.name))
+                raise RuntimeError(f"Unsafe path in tar archive: {member.name}")
 
         tar.extractall(dest_dir)
 
@@ -334,7 +334,7 @@ def _extract_archive(
     dest_dir: Path,
     log_callback: LogCallback | None = None,
 ) -> None:
-    _log(log_callback, tr("flash_tools.extracting", name=archive_path.name))
+    _log(log_callback, f"Extracting {archive_path.name}...")
 
     name = archive_path.name.lower()
     if name.endswith((".tar.gz", ".tgz", ".tar")):
@@ -342,13 +342,13 @@ def _extract_archive(
     elif name.endswith(".zip"):
         _extract_zip(archive_path, dest_dir)
     else:
-        raise RuntimeError(tr("flash_tools.unsupported_archive", name=archive_path.name))
+        raise RuntimeError(f"Unsupported archive format: {archive_path.name}")
 
-    _log(log_callback, tr("flash_tools.finished_extracting", name=archive_path.name))
+    _log(log_callback, f"Finished extracting {archive_path.name}")
 
     try:
         archive_path.unlink()
-        _log(log_callback, tr("flash_tools.removed_archive", name=archive_path.name))
+        _log(log_callback, f"Removed archive: {archive_path.name}")
     except FileNotFoundError:
         pass
 
@@ -410,7 +410,7 @@ def get_balena_executable() -> Path:
         if exe:
             return exe
 
-    raise RuntimeError(tr("flash_tools.balena_not_found"))
+    raise RuntimeError("balena CLI executable not found. Download it first.")
 
 
 def get_mr_fusion_image() -> Path:
@@ -418,7 +418,7 @@ def get_mr_fusion_image() -> Path:
     if image:
         return image
 
-    raise RuntimeError(tr("flash_tools.mr_fusion_not_found"))
+    raise RuntimeError("Mr. Fusion image not found. Download it first.")
 
 
 def get_superstation_image() -> Path:
@@ -426,25 +426,25 @@ def get_superstation_image() -> Path:
     if image:
         return image
 
-    raise RuntimeError(tr("flash_tools.superstation_not_found"))
+    raise RuntimeError("SuperStation image not found. Download it first.")
 
 
 def remove_balena_cli(log_callback: LogCallback | None = None) -> None:
     ensure_tools_dirs(log_callback)
     _clear_directory_contents(BALENA_DIR)
-    _log(log_callback, tr("flash_tools.balena_removed"))
+    _log(log_callback, "Removed balena CLI files.")
 
 
 def remove_mr_fusion_image(log_callback: LogCallback | None = None) -> None:
     ensure_tools_dirs(log_callback)
     _clear_directory_contents(MR_FUSION_DIR)
-    _log(log_callback, tr("flash_tools.mr_fusion_removed"))
+    _log(log_callback, "Removed Mr. Fusion files.")
 
 
 def remove_superstation_image(log_callback: LogCallback | None = None) -> None:
     ensure_tools_dirs(log_callback)
     _clear_directory_contents(SUPERSTATION_DIR)
-    _log(log_callback, tr("flash_tools.superstation_removed"))
+    _log(log_callback, "Removed SuperStation files.")
 
 
 def _select_balena_asset(release_data: dict) -> dict:
@@ -452,7 +452,7 @@ def _select_balena_asset(release_data: dict) -> dict:
     arch_key = get_arch_key()
 
     if platform_key not in {"windows", "linux", "macos"}:
-        raise RuntimeError(tr("flash_tools.flash_supported_platforms"))
+        raise RuntimeError("Flash SD is only supported on Windows, Linux, and macOS.")
 
     expected_fragment = f"{platform_key}-{arch_key}-standalone.tar.gz"
     assets = release_data.get("assets", [])
@@ -463,7 +463,7 @@ def _select_balena_asset(release_data: dict) -> dict:
             return asset
 
     raise RuntimeError(
-        tr("flash_tools.balena_asset_not_found", platform=platform_key, arch=arch_key)
+        f"Could not find a balena CLI asset for {platform_key}/{arch_key}."
     )
 
 
@@ -480,7 +480,7 @@ def _select_mr_fusion_asset(release_data: dict) -> dict:
         if lower_name.endswith(".img.zip") and "mr-fusion" in lower_name:
             return asset
 
-    raise RuntimeError(tr("flash_tools.mr_fusion_asset_not_found"))
+    raise RuntimeError("Could not find a Mr. Fusion .img.zip asset.")
 
 
 def _select_superstation_asset(release_data: dict) -> dict:
@@ -494,7 +494,7 @@ def _select_superstation_asset(release_data: dict) -> dict:
             img_zip_assets.append(asset)
 
     if not img_zip_assets:
-        raise RuntimeError(tr("flash_tools.superstation_asset_not_found"))
+        raise RuntimeError("Could not find a SuperStation .img.zip asset.")
 
     def asset_sort_key(asset: dict) -> tuple[str, str]:
         updated = str(asset.get("updated_at") or "")
@@ -543,7 +543,7 @@ def get_superstation_image_status(log_callback: LogCallback | None = None) -> di
                 up_to_date = None
                 update_available = False
     except Exception as e:
-        _log(log_callback, tr("flash_tools.latest_superstation_check_failed", error=e))
+        _log(log_callback, f"Unable to check latest SuperStation release: {e}")
         latest_name = None
         if installed:
             up_to_date = None
@@ -563,7 +563,7 @@ def ensure_balena_cli(
     log_callback: LogCallback | None = None,
 ) -> Path:
     if not is_flash_supported():
-        raise RuntimeError(tr("flash_tools.flash_not_supported_platform"))
+        raise RuntimeError("Flash SD is not supported on this platform.")
 
     ensure_tools_dirs(log_callback)
 
@@ -572,12 +572,12 @@ def ensure_balena_cli(
             exe = get_balena_executable()
             if platform.system() in ("Linux", "Darwin"):
                 _make_executable(exe)
-            _log(log_callback, tr("flash_tools.using_existing_balena", path=exe))
+            _log(log_callback, f"Using existing balena CLI: {exe}")
             return exe
         except Exception:
             pass
 
-    _log(log_callback, tr("flash_tools.checking_balena"))
+    _log(log_callback, "Checking latest balena CLI release...")
     release_data = _github_latest_release(BALENA_REPO)
     asset = _select_balena_asset(release_data)
 
@@ -591,7 +591,7 @@ def ensure_balena_cli(
     if platform.system() in ("Linux", "Darwin"):
         _make_executable(exe)
 
-    _log(log_callback, tr("flash_tools.balena_ready", path=exe))
+    _log(log_callback, f"balena CLI ready: {exe}")
     return exe
 
 
@@ -600,19 +600,19 @@ def ensure_mr_fusion_image(
     log_callback: LogCallback | None = None,
 ) -> Path:
     if not is_flash_supported():
-        raise RuntimeError(tr("flash_tools.flash_not_supported_platform"))
+        raise RuntimeError("Flash SD is not supported on this platform.")
 
     ensure_tools_dirs(log_callback)
 
     if not force_download:
         try:
             image = get_mr_fusion_image()
-            _log(log_callback, tr("flash_tools.using_existing_mr_fusion", path=image))
+            _log(log_callback, f"Using existing Mr. Fusion image: {image}")
             return image
         except Exception:
             pass
 
-    _log(log_callback, tr("flash_tools.checking_mr_fusion"))
+    _log(log_callback, "Checking latest Mr. Fusion release...")
     release_data = _github_latest_release(MR_FUSION_REPO)
     asset = _select_mr_fusion_asset(release_data)
 
@@ -623,7 +623,7 @@ def ensure_mr_fusion_image(
     _extract_archive(archive_path, MR_FUSION_DIR, log_callback)
 
     image = get_mr_fusion_image()
-    _log(log_callback, tr("flash_tools.mr_fusion_ready", path=image))
+    _log(log_callback, f"Mr. Fusion image ready: {image}")
     return image
 
 
@@ -632,7 +632,7 @@ def ensure_superstation_image(
     log_callback: LogCallback | None = None,
 ) -> Path:
     if not is_flash_supported():
-        raise RuntimeError(tr("flash_tools.flash_not_supported_platform"))
+        raise RuntimeError("Flash SD is not supported on this platform.")
 
     ensure_tools_dirs(log_callback)
 
@@ -641,28 +641,21 @@ def ensure_superstation_image(
             status = get_superstation_image_status(log_callback=log_callback)
             if status.get("installed") and not status.get("update_available"):
                 image = get_superstation_image()
-                _log(log_callback, tr("flash_tools.using_existing_superstation", path=image))
+                _log(log_callback, f"Using existing SuperStation image: {image}")
                 return image
         except Exception:
             pass
 
-    _log(log_callback, tr("flash_tools.checking_superstation"))
+    _log(log_callback, "Checking latest SuperStation release...")
     release_data = _github_latest_release(SUPERSTATION_REPO)
     asset = _select_superstation_asset(release_data)
 
     asset_name = str(asset.get("name", "")).strip()
     asset_timestamp = _asset_timestamp(asset)
     if asset_timestamp:
-        _log(
-            log_callback,
-            tr(
-                "flash_tools.latest_superstation_with_date",
-                name=asset_name,
-                date=asset_timestamp,
-            ),
-        )
+        _log(log_callback, f"Latest SuperStation installer: {asset_name} ({asset_timestamp})")
     else:
-        _log(log_callback, tr("flash_tools.latest_superstation", name=asset_name))
+        _log(log_callback, f"Latest SuperStation installer: {asset_name}")
 
     archive_path = SUPERSTATION_DIR / asset["name"]
 
@@ -671,7 +664,7 @@ def ensure_superstation_image(
     _extract_archive(archive_path, SUPERSTATION_DIR, log_callback)
 
     image = get_superstation_image()
-    _log(log_callback, tr("flash_tools.superstation_ready", path=image))
+    _log(log_callback, f"SuperStation image ready: {image}")
     return image
 
 
@@ -768,7 +761,7 @@ def _build_drive_display_name(
         except Exception:
             pass
 
-    return " - ".join(parts) if parts else tr("flash_tools.unknown_drive")
+    return " - ".join(parts) if parts else "Unknown drive"
 
 
 def _size_text_to_bytes(size_text: str) -> int | None:
@@ -832,10 +825,10 @@ def list_available_drives(
         return []
 
     if not has_balena_cli():
-        raise RuntimeError(tr("flash_tools.balena_missing_download_first"))
+        raise RuntimeError("balena CLI is not downloaded yet. Download it first.")
 
     balena_exe = get_balena_executable()
-    _log(log_callback, tr("flash_tools.refreshing_drives"))
+    _log(log_callback, "Refreshing available drives...")
 
     result = _run_subprocess(
         [str(balena_exe), "util", "available-drives"],
@@ -846,13 +839,13 @@ def list_available_drives(
         stderr = (result.stderr or "").strip()
         stdout = (result.stdout or "").strip()
         combined = "\n".join(part for part in [stderr, stdout] if part).strip()
-        raise RuntimeError(combined or tr("flash_tools.failed_get_drives"))
+        raise RuntimeError(combined or "Failed to get available drives.")
 
     stdout = (result.stdout or "").strip()
     if not stdout:
         return []
 
-    _log(log_callback, tr("flash_tools.raw_balena_output"))
+    _log(log_callback, "Raw balena drive output:")
     for line in stdout.splitlines():
         _log(log_callback, line)
 
@@ -874,7 +867,7 @@ def list_available_drives(
             windows_drive_letter_map=windows_drive_letter_map,
         )
 
-    _log(log_callback, tr("flash_tools.parsed_drives", count=len(drives)))
+    _log(log_callback, f"Parsed {len(drives)} drive(s).")
     return drives
 
 
@@ -888,13 +881,13 @@ def flash_image(
 
     image_path = Path(image_path)
     if not image_path.exists():
-        raise RuntimeError(tr("flash_tools.image_not_found", path=image_path))
+        raise RuntimeError(f"Image file not found: {image_path}")
 
     if not drive:
-        raise RuntimeError(tr("flash_tools.no_drive_selected"))
+        raise RuntimeError("No drive selected.")
 
     if not has_balena_cli():
-        raise RuntimeError(tr("flash_tools.balena_missing_download_first"))
+        raise RuntimeError("balena CLI is not downloaded yet. Download it first.")
 
     balena_exe = get_balena_executable()
 
@@ -911,13 +904,13 @@ def flash_image(
     if platform.system() == "Darwin":
         cmd = ["sudo", "-S"] + cmd
 
-    _log(log_callback, tr("flash_tools.starting_flash", name=image_path.name))
-    _log(log_callback, tr("flash_tools.target_drive", drive=drive))
+    _log(log_callback, f"Starting flash: {image_path.name}")
+    _log(log_callback, f"Target drive: {drive}")
 
     clean_env = _clean_subprocess_env()
 
     if platform.system() == "Darwin":
-        _log(log_callback, tr("flash_tools.unmounting_disk"))
+        _log(log_callback, "Unmounting disk before flash...")
         subprocess.run(
             ["diskutil", "unmountDisk", drive],
             capture_output=True,
@@ -989,52 +982,67 @@ def flash_image(
         if return_code != 0:
             if "symbol lookup error" in combined_output or "undefined symbol" in combined_output:
                 raise RuntimeError(
-                    tr("flash_tools.flash_failed_linux_command", code=return_code)
+                    "Flash failed because an external Linux system command could not start correctly.\n\n"
+                    "This is usually caused by a bundled PyInstaller library conflicting with a system library.\n"
+                    "MiSTer Companion tried to use a cleaned subprocess environment, but balena CLI still failed.\n\n"
+                    f"Exit code: {return_code}"
                 )
 
-            raise RuntimeError(tr("flash_tools.flash_failed_exit_code", code=return_code))
+            raise RuntimeError(f"Flash failed with exit code {return_code}.")
 
         for marker in error_markers:
             if marker in combined_output:
                 if platform.system() == "Windows":
-                    raise RuntimeError(tr("flash_tools.flash_failed_windows_permission"))
-
+                    raise RuntimeError(
+                        "Flash failed. balena CLI reported a permission or drive access error.\n\n"
+                        "Run MiSTer Companion as Administrator and try again."
+                    )
                 if platform.system() == "Linux":
                     if marker in {"symbol lookup error", "undefined symbol"}:
-                        raise RuntimeError(tr("flash_tools.flash_failed_linux_library"))
+                        raise RuntimeError(
+                            "Flash failed because an external Linux system command could not start correctly.\n\n"
+                            "This is usually caused by a bundled PyInstaller library conflicting with a system library."
+                        )
 
-                    raise RuntimeError(tr("flash_tools.flash_failed_linux_permission"))
-
+                    raise RuntimeError(
+                        "Flash failed. balena CLI reported a permission or drive access error.\n\n"
+                        "Run MiSTer Companion with sudo or pkexec and try again."
+                    )
                 if platform.system() == "Darwin":
-                    raise RuntimeError(tr("flash_tools.flash_failed_macos_permission"))
+                    raise RuntimeError(
+                        "Flash failed. balena CLI reported a permission or drive access error.\n\n"
+                        "macOS may have blocked access to the drive. Check System Settings → "
+                        "Privacy & Security → Full Disk Access and ensure balena CLI is permitted."
+                    )
+                raise RuntimeError(
+                    "Flash failed. balena CLI reported a permission or drive access error."
+                )
 
-                raise RuntimeError(tr("flash_tools.flash_failed_permission"))
-
-        _log(log_callback, tr("flash_tools.flash_complete"))
+        _log(log_callback, "Flash completed successfully.")
 
         if platform.system() == "Darwin":
-            _log(log_callback, tr("flash_tools.ejecting_drive"))
+            _log(log_callback, "Ejecting drive...")
             subprocess.run(
                 ["diskutil", "eject", drive],
                 capture_output=True,
                 text=True,
                 env=clean_env,
             )
-            _log(log_callback, tr("flash_tools.drive_ejected"))
+            _log(log_callback, "Drive ejected.")
 
     finally:
         if process.stdout is not None:
             try:
                 process.stdout.close()
             except Exception as e:
-                _log(log_callback, tr("flash_tools.failed_close_stdout", error=e))
+                _log(log_callback, f"Failed to close process stdout: {e}")
 
         if platform.system() == "Windows":
             try:
-                _log(log_callback, tr("flash_tools.waiting_restore_windows"))
+                _log(log_callback, "Waiting briefly before restoring Windows settings...")
                 time.sleep(3.0)
-                _log(log_callback, tr("flash_tools.restoring_autoplay"))
+                _log(log_callback, "Restoring Windows AutoPlay setting...")
                 _restore_windows_autoplay(original_autoplay_value, log_callback)
-                _log(log_callback, tr("flash_tools.autoplay_restore_complete"))
+                _log(log_callback, "Windows AutoPlay restore complete.")
             except Exception as e:
-                _log(log_callback, tr("flash_tools.failed_restore_windows", error=e))
+                _log(log_callback, f"Failed to restore Windows settings: {e}")

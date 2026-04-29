@@ -1,8 +1,6 @@
 import os
 import shutil
 
-from core.language import tr
-
 
 def sanitize_folder_name(name: str) -> str:
     if not name:
@@ -21,7 +19,7 @@ def ip_to_folder_name(ip_address: str) -> str:
 
 def get_profile_or_ip_folder_name(profile_name: str = "", ip_address: str = "") -> str:
     profile_name = sanitize_folder_name(profile_name)
-    if profile_name and profile_name != tr("connection_tab.select_device"):
+    if profile_name and profile_name != "Select Device":
         return profile_name
     return ip_to_folder_name(ip_address)
 
