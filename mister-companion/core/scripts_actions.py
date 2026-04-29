@@ -8,6 +8,8 @@ from io import BytesIO
 
 import requests
 
+from core.language import tr
+
 
 UPDATE_ALL_RELEASE_API = "https://api.github.com/repos/theypsilon/Update_All_MiSTer/releases/latest"
 ZAPAROO_RELEASE_API = "https://api.github.com/repos/ZaparooProject/zaparoo-core/releases/latest"
@@ -603,12 +605,12 @@ def _download_ftp_save_sync_rclone_binary():
         if normalized.endswith("/rclone") or normalized == "rclone":
             return zip_file.read(entry)
 
-    raise RuntimeError("Could not find rclone binary inside the downloaded ZIP.")
+    raise RuntimeError(tr("scripts_core.rclone_missing_in_zip"))
 
 
 def ensure_ftp_save_sync_bootstrap(connection, log=None):
     if not connection.is_connected():
-        raise RuntimeError("Not connected to MiSTer.")
+        raise RuntimeError(tr("scripts_core.not_connected"))
 
     def _log(message):
         if log:
@@ -622,31 +624,31 @@ def ensure_ftp_save_sync_bootstrap(connection, log=None):
 
     rclone_ok = _remote_command_success(connection, f"{FTP_SAVE_SYNC_RCLONE_PATH} version")
     if rclone_ok:
-        _log("Existing ftp_save_sync rclone binary is valid, keeping it.\n")
+        _log(tr("scripts_core.log_rclone_valid"))
     else:
-        _log("Installing ftp_save_sync rclone binary...\n")
+        _log(tr("scripts_core.log_installing_rclone"))
         rclone_binary = _download_ftp_save_sync_rclone_binary()
         _write_remote_bytes(connection, FTP_SAVE_SYNC_RCLONE_PATH, rclone_binary)
         connection.run_command(f"chmod +x {FTP_SAVE_SYNC_RCLONE_PATH}")
 
         if not _remote_command_success(connection, f"{FTP_SAVE_SYNC_RCLONE_PATH} version"):
-            raise RuntimeError("ftp_save_sync rclone upload succeeded, but the binary is not executable on MiSTer.")
+            raise RuntimeError(tr("scripts_core.rclone_not_executable"))
 
-        _log("ftp_save_sync rclone installed successfully.\n")
+        _log(tr("scripts_core.log_rclone_installed"))
 
-    _log("Writing ftp_save_sync daemon script...\n")
+    _log(tr("scripts_core.log_writing_daemon"))
     _write_remote_text(connection, FTP_SAVE_SYNC_DAEMON_PATH, FTP_SAVE_SYNC_DAEMON_SCRIPT)
     connection.run_command(f"chmod +x {FTP_SAVE_SYNC_DAEMON_PATH}")
 
     if not _remote_command_success(connection, f"test -x {FTP_SAVE_SYNC_DAEMON_PATH}"):
-        raise RuntimeError("ftp_save_sync daemon script could not be prepared on MiSTer.")
+        raise RuntimeError(tr("scripts_core.daemon_prepare_failed"))
 
-    _log("ftp_save_sync bootstrap complete.\n")
+    _log(tr("scripts_core.log_bootstrap_complete"))
 
 
 def ensure_update_all_config_bootstrap(connection):
     if not connection.is_connected():
-        raise RuntimeError("Not connected to MiSTer.")
+        raise RuntimeError(tr("scripts_core.not_connected"))
 
     ensure_remote_scripts_dir(connection)
 
@@ -700,7 +702,8 @@ def is_ftp_save_sync_service_enabled(connection) -> bool:
 
 def reload_mister_menu(connection):
     if not connection.is_connected():
-        raise RuntimeError("Not connected to MiSTer.")
+        raise RuntimeError(tr("scripts_core.not_connected"))
+
     connection.run_command(MISTER_MENU_RELOAD_CMD)
 
 
@@ -866,7 +869,7 @@ def get_scripts_status(connection) -> ScriptsStatus:
 
 
 def install_update_all(connection, log):
-    log("Installing update_all...\n")
+    log(tr("scripts_core.log_installing_update_all"))
     api_data = requests.get(UPDATE_ALL_RELEASE_API, timeout=15).json()
 
     download_url = None
@@ -878,10 +881,10 @@ def install_update_all(connection, log):
             break
 
     if not download_url:
-        raise RuntimeError("Could not find update_all script.")
+        raise RuntimeError(tr("scripts_core.update_all_script_not_found"))
 
-    log(f"Found release: {asset_name}\n")
-    log("Downloading release...\n")
+    log(tr("scripts_core.log_found_release", name=asset_name))
+    log(tr("scripts_core.log_downloading_release"))
     script_data = requests.get(download_url, timeout=30).content
 
     ensure_remote_scripts_dir(connection)
@@ -894,7 +897,7 @@ def install_update_all(connection, log):
         sftp.close()
 
     connection.run_command("chmod +x /media/fat/Scripts/update_all.sh")
-    log("Installation complete.\n")
+    log(tr("scripts_core.log_installation_complete"))
 
 
 def uninstall_update_all(connection):
@@ -906,7 +909,7 @@ def run_update_all_stream(connection, log):
 
 
 def install_zaparoo(connection, log):
-    log("Installing Zaparoo...\n")
+    log(tr("scripts_core.log_installing_zaparoo"))
     api_data = requests.get(ZAPAROO_RELEASE_API, timeout=15).json()
 
     download_url = None
@@ -920,10 +923,10 @@ def install_zaparoo(connection, log):
             break
 
     if not download_url:
-        raise RuntimeError("Could not find MiSTer Zaparoo release.")
+        raise RuntimeError(tr("scripts_core.zaparoo_release_not_found"))
 
-    log(f"Found release: {asset_name}\n")
-    log("Downloading release...\n")
+    log(tr("scripts_core.log_found_release", name=asset_name))
+    log(tr("scripts_core.log_downloading_release"))
     zip_data = requests.get(download_url, timeout=30).content
     zip_file = zipfile.ZipFile(BytesIO(zip_data))
 
@@ -936,7 +939,7 @@ def install_zaparoo(connection, log):
             break
 
     if zaparoo_data is None:
-        raise RuntimeError("Could not find zaparoo.sh inside the release ZIP.")
+        raise RuntimeError(tr("scripts_core.zaparoo_script_not_found"))
 
     sftp = connection.client.open_sftp()
     try:
@@ -946,8 +949,8 @@ def install_zaparoo(connection, log):
         sftp.close()
 
     connection.run_command("chmod +x /media/fat/Scripts/zaparoo.sh")
-    log("Zaparoo installation complete.\n")
-    log("Next step: Enable the Zaparoo service from the Scripts tab.\n")
+    log(tr("scripts_core.log_zaparoo_install_complete"))
+    log(tr("scripts_core.log_zaparoo_next_step"))
 
 
 def enable_zaparoo_service(connection):
@@ -987,7 +990,7 @@ def uninstall_zaparoo(connection):
 
 
 def install_migrate_sd(connection, log):
-    log("Installing migrate_sd...\n")
+    log(tr("scripts_core.log_installing_migrate_sd"))
     script_data = requests.get(MIGRATE_SD_URL, timeout=30).content
 
     ensure_remote_scripts_dir(connection)
@@ -1000,8 +1003,8 @@ def install_migrate_sd(connection, log):
         sftp.close()
 
     connection.run_command("chmod +x /media/fat/Scripts/migrate_sd.sh")
-    log("migrate_sd installed successfully.\n")
-    log("Run it from the MiSTer Scripts menu.\n")
+    log(tr("scripts_core.log_migrate_sd_installed"))
+    log(tr("scripts_core.log_run_from_mister_scripts"))
 
 
 def uninstall_migrate_sd(connection):
@@ -1009,7 +1012,7 @@ def uninstall_migrate_sd(connection):
 
 
 def install_cifs_mount(connection, log):
-    log("Installing cifs_mount scripts...\n")
+    log(tr("scripts_core.log_installing_cifs"))
     mount_script = requests.get(CIFS_MOUNT_URL, timeout=30).content
     umount_script = requests.get(CIFS_UMOUNT_URL, timeout=30).content
 
@@ -1026,7 +1029,7 @@ def install_cifs_mount(connection, log):
 
     connection.run_command("chmod +x /media/fat/Scripts/cifs_mount.sh")
     connection.run_command("chmod +x /media/fat/Scripts/cifs_umount.sh")
-    log("CIFS scripts installed.\n")
+    log(tr("scripts_core.log_cifs_installed"))
 
 
 def uninstall_cifs_mount(connection):
@@ -1099,7 +1102,7 @@ def test_cifs_connection(connection, server, share, username, password):
 
 
 def install_auto_time(connection, log):
-    log("Installing auto_time...\n")
+    log(tr("scripts_core.log_installing_auto_time"))
     script_data = requests.get(AUTO_TIME_URL, timeout=30).content
 
     ensure_remote_scripts_dir(connection)
@@ -1112,7 +1115,7 @@ def install_auto_time(connection, log):
         sftp.close()
 
     connection.run_command("chmod +x /media/fat/Scripts/auto_time.sh")
-    log("auto_time installed successfully.\n")
+    log(tr("scripts_core.log_auto_time_installed"))
 
 
 def uninstall_auto_time(connection):
@@ -1120,7 +1123,7 @@ def uninstall_auto_time(connection):
 
 
 def install_dav_browser(connection, log):
-    log("Installing dav_browser...\n")
+    log(tr("scripts_core.log_installing_dav_browser"))
     script_data = requests.get(DAV_BROWSER_URL, timeout=30).content
 
     ensure_remote_scripts_dir(connection)
@@ -1133,7 +1136,7 @@ def install_dav_browser(connection, log):
         sftp.close()
 
     connection.run_command("chmod +x /media/fat/Scripts/dav_browser.sh")
-    log("dav_browser installed successfully.\n")
+    log(tr("scripts_core.log_dav_browser_installed"))
 
 
 def uninstall_dav_browser(connection):
@@ -1191,17 +1194,17 @@ def remove_dav_browser_config(connection):
 
 
 def install_ftp_save_sync(connection, log):
-    log("Installing ftp_save_sync...\n")
+    log(tr("scripts_core.log_installing_ftp_save_sync"))
     script_data = requests.get(FTP_SAVE_SYNC_URL, timeout=30).content
 
     ensure_remote_scripts_dir(connection)
     _write_remote_bytes(connection, "/media/fat/Scripts/ftp_save_sync.sh", script_data)
 
     connection.run_command("chmod +x /media/fat/Scripts/ftp_save_sync.sh")
-    log("ftp_save_sync main script uploaded.\n")
+    log(tr("scripts_core.log_ftp_save_sync_uploaded"))
 
     ensure_ftp_save_sync_bootstrap(connection, log)
-    log("ftp_save_sync installed successfully.\n")
+    log(tr("scripts_core.log_ftp_save_sync_installed"))
 
 
 def uninstall_ftp_save_sync(connection):
@@ -1322,9 +1325,9 @@ def disable_ftp_save_sync_service(connection):
 
 def install_static_wallpaper(connection, log):
     if not connection.is_connected():
-        raise RuntimeError("Not connected to MiSTer.")
+        raise RuntimeError(tr("scripts_core.not_connected"))
 
-    log("Installing static_wallpaper...\n")
+    log(tr("scripts_core.log_installing_static_wallpaper"))
     script_data = requests.get(STATIC_WALLPAPER_URL, timeout=30).content
 
     ensure_remote_scripts_dir(connection)
@@ -1332,12 +1335,12 @@ def install_static_wallpaper(connection, log):
 
     connection.run_command(f"chmod +x {STATIC_WALLPAPER_SCRIPT_PATH}")
     connection.run_command(f"mkdir -p {STATIC_WALLPAPER_CONFIG_DIR}")
-    log("static_wallpaper installed successfully.\n")
+    log(tr("scripts_core.log_static_wallpaper_installed"))
 
 
 def uninstall_static_wallpaper(connection):
     if not connection.is_connected():
-        raise RuntimeError("Not connected to MiSTer.")
+        raise RuntimeError(tr("scripts_core.not_connected"))
 
     connection.run_command(f"rm -f {STATIC_WALLPAPER_SCRIPT_PATH}")
     connection.run_command(f"rm -rf {STATIC_WALLPAPER_CONFIG_DIR}")
@@ -1347,7 +1350,7 @@ def uninstall_static_wallpaper(connection):
 
 def remove_static_wallpaper(connection, reload_menu=True):
     if not connection.is_connected():
-        raise RuntimeError("Not connected to MiSTer.")
+        raise RuntimeError(tr("scripts_core.not_connected"))
 
     connection.run_command(f"rm -f {STATIC_WALLPAPER_TARGET_JPG}")
     connection.run_command(f"rm -f {STATIC_WALLPAPER_TARGET_PNG}")
@@ -1359,7 +1362,7 @@ def remove_static_wallpaper(connection, reload_menu=True):
 
 def list_static_wallpapers(connection):
     if not connection.is_connected():
-        raise RuntimeError("Not connected to MiSTer.")
+        raise RuntimeError(tr("scripts_core.not_connected"))
 
     cmd = (
         f'find {STATIC_WALLPAPER_DIR} -maxdepth 1 -type f '
@@ -1382,25 +1385,25 @@ def list_static_wallpapers(connection):
 
 def get_static_wallpaper_preview_bytes(connection, remote_path):
     if not connection.is_connected():
-        raise RuntimeError("Not connected to MiSTer.")
+        raise RuntimeError(tr("scripts_core.not_connected"))
 
     if not remote_path:
-        raise RuntimeError("No wallpaper path provided.")
+        raise RuntimeError(tr("scripts_core.no_wallpaper_path"))
 
     quoted_path = shlex.quote(remote_path)
     check = connection.run_command(f"test -f {quoted_path} && echo EXISTS")
     if "EXISTS" not in (check or ""):
-        raise RuntimeError("Wallpaper file not found on MiSTer.")
+        raise RuntimeError(tr("scripts_core.wallpaper_file_not_found"))
 
     return _read_remote_bytes(connection, remote_path)
 
 
 def apply_static_wallpaper(connection, wallpaper_path, reload_menu=True):
     if not connection.is_connected():
-        raise RuntimeError("Not connected to MiSTer.")
+        raise RuntimeError(tr("scripts_core.not_connected"))
 
     if not wallpaper_path:
-        raise RuntimeError("No wallpaper selected.")
+        raise RuntimeError(tr("scripts_core.no_wallpaper_selected"))
 
     ext = os.path.splitext(wallpaper_path)[1].lower()
     quoted_src = shlex.quote(wallpaper_path)
@@ -1410,7 +1413,7 @@ def apply_static_wallpaper(connection, wallpaper_path, reload_menu=True):
 
     exists_check = connection.run_command(f"test -f {quoted_src} && echo EXISTS")
     if "EXISTS" not in (exists_check or ""):
-        raise RuntimeError("Selected wallpaper no longer exists on MiSTer.")
+        raise RuntimeError(tr("scripts_core.selected_wallpaper_missing"))
 
     if ext in {".jpg", ".jpeg"}:
         connection.run_command(f"rm -f {STATIC_WALLPAPER_TARGET_PNG}")
@@ -1421,7 +1424,7 @@ def apply_static_wallpaper(connection, wallpaper_path, reload_menu=True):
         connection.run_command(f"cp {quoted_src} {STATIC_WALLPAPER_TARGET_PNG}")
         connection.run_command(f"rm -f {STATIC_WALLPAPER_TARGET_JPG}")
     else:
-        raise RuntimeError("Unsupported wallpaper format. Use PNG, JPG, or JPEG.")
+        raise RuntimeError(tr("scripts_core.unsupported_wallpaper_format"))
 
     connection.run_command(f"printf %s {quoted_src} > {quoted_cfg}")
     connection.run_command("sync")
@@ -1432,7 +1435,7 @@ def apply_static_wallpaper(connection, wallpaper_path, reload_menu=True):
 
 def open_scripts_folder_on_host(ip, username="root", password="1"):
     if not ip:
-        raise ValueError("No MiSTer IP address is available.")
+        raise ValueError(tr("scripts_core.no_mister_ip"))
 
     if sys.platform.startswith("win"):
         subprocess.Popen(f'explorer "\\\\{ip}\\sdcard\\Scripts"')
@@ -1467,4 +1470,4 @@ def open_scripts_folder_on_host(ip, username="root", password="1"):
         subprocess.Popen(["open", os.path.join(mount_point, "Scripts")])
         return
 
-    raise RuntimeError(f"Unsupported platform: {sys.platform}")
+    raise RuntimeError(tr("scripts_core.unsupported_platform", platform=sys.platform))

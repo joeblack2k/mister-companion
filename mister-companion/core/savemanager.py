@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 
 from core.config import save_config
+from core.language import tr
 from core.profile_folder_sync import get_profile_or_ip_folder_name
 
 
@@ -28,13 +29,13 @@ def ensure_remote_save_dirs(connection, log_callback=None):
         return
 
     if log_callback:
-        log_callback("Checking MiSTer save folders...")
+        log_callback(tr("savemanager_core.log_checking_mister_save_folders"))
 
     connection.run_command(f'mkdir -p "{REMOTE_SAVES_DIR}"')
     connection.run_command(f'mkdir -p "{REMOTE_SAVESTATES_DIR}"')
 
     if log_callback:
-        log_callback("MiSTer save folders are ready.")
+        log_callback(tr("savemanager_core.log_mister_save_folders_ready"))
 
 
 def get_device_folder_name(profile_name: str = "", ip_address: str = "") -> str:
@@ -81,7 +82,7 @@ def enforce_backup_retention(config_data, profile_name: str = "", ip_address: st
         oldest = backups.pop(0)
         shutil.rmtree(oldest, ignore_errors=True)
         if log_callback:
-            log_callback(f"Old backup removed: {oldest.name}")
+            log_callback(tr("savemanager_core.log_old_backup_removed", name=oldest.name))
 
 
 def save_retention_setting(config_data, value: int):
@@ -166,7 +167,6 @@ def _merge_remote_newer_into_local(sftp, remote_dir: str, local_dir: Path):
                     local_time = 0
 
                 if remote_time > local_time:
-                    shutil.copy2(local_path, local_path) if False else None
                     sftp.get(remote_path, str(local_path))
             else:
                 sftp.get(remote_path, str(local_path))
@@ -232,7 +232,13 @@ def rebuild_sync_folder_from_latest_backups(log_callback=None):
         latest_savestates = latest_backup / "savestates"
 
         if log_callback:
-            log_callback(f"Merging latest backup from {device_folder.name}: {latest_backup.name}")
+            log_callback(
+                tr(
+                    "savemanager_core.log_merging_latest_backup",
+                    device=device_folder.name,
+                    backup=latest_backup.name,
+                )
+            )
 
         _merge_local_dir_newer_into_local(latest_saves, sync_saves_path)
         _merge_local_dir_newer_into_local(latest_savestates, sync_savestates_path)
@@ -244,7 +250,7 @@ def create_backup(connection, config_data, profile_name: str = "", ip_address: s
 
     device_root = get_device_backup_root(profile_name, ip_address)
     if not device_root.name:
-        raise RuntimeError("No device name or IP available.")
+        raise RuntimeError(tr("savemanager_core.no_device_name_or_ip"))
 
     timestamp = time.strftime("%Y-%m-%d_%H-%M-%S")
     backup_path = device_root / timestamp
@@ -254,7 +260,7 @@ def create_backup(connection, config_data, profile_name: str = "", ip_address: s
     backup_path.mkdir(parents=True, exist_ok=True)
 
     if log_callback:
-        log_callback("Starting backup...")
+        log_callback(tr("savemanager_core.log_starting_backup"))
 
     sftp = connection.client.open_sftp()
     try:
@@ -264,12 +270,12 @@ def create_backup(connection, config_data, profile_name: str = "", ip_address: s
         sftp.close()
 
     if log_callback:
-        log_callback(f"Backup created: {backup_path}")
+        log_callback(tr("savemanager_core.log_backup_created", path=backup_path))
 
     enforce_backup_retention(config_data, profile_name, ip_address, log_callback=log_callback)
 
     if log_callback:
-        log_callback("Rebuilding sync folder from latest backups...")
+        log_callback(tr("savemanager_core.log_rebuilding_sync_folder"))
 
     rebuild_sync_folder_from_latest_backups(log_callback=log_callback)
 
@@ -283,13 +289,13 @@ def restore_backup(connection, backup_name: str, profile_name: str = "", ip_addr
     backup_path = device_root / backup_name
 
     if not backup_path.exists():
-        raise RuntimeError("Selected backup was not found.")
+        raise RuntimeError(tr("savemanager_core.selected_backup_not_found"))
 
     saves_path = backup_path / "saves"
     savestates_path = backup_path / "savestates"
 
     if log_callback:
-        log_callback(f"Restoring backup: {backup_name}")
+        log_callback(tr("savemanager_core.log_restoring_backup", name=backup_name))
 
     sftp = connection.client.open_sftp()
     try:
@@ -299,7 +305,7 @@ def restore_backup(connection, backup_name: str, profile_name: str = "", ip_addr
         sftp.close()
 
     if log_callback:
-        log_callback("Restore completed successfully.")
+        log_callback(tr("savemanager_core.log_restore_completed"))
 
 
 def sync_saves(connection, log_callback=None):
@@ -311,11 +317,11 @@ def sync_saves(connection, log_callback=None):
 
     if not sync_saves_path.exists() or not sync_savestates_path.exists():
         if log_callback:
-            log_callback("Sync folder missing, rebuilding from latest backups...")
+            log_callback(tr("savemanager_core.log_sync_folder_missing"))
         rebuild_sync_folder_from_latest_backups(log_callback=log_callback)
 
     if log_callback:
-        log_callback("Downloading newest saves from MiSTer...")
+        log_callback(tr("savemanager_core.log_downloading_newest_saves"))
 
     sftp = connection.client.open_sftp()
     try:
@@ -323,7 +329,7 @@ def sync_saves(connection, log_callback=None):
         _merge_remote_newer_into_local(sftp, REMOTE_SAVESTATES_DIR, sync_savestates_path)
 
         if log_callback:
-            log_callback("Uploading newest saves to MiSTer...")
+            log_callback(tr("savemanager_core.log_uploading_newest_saves"))
 
         _upload_dir(connection, sftp, sync_saves_path, REMOTE_SAVES_DIR)
         _upload_dir(connection, sftp, sync_savestates_path, REMOTE_SAVESTATES_DIR)
@@ -331,4 +337,4 @@ def sync_saves(connection, log_callback=None):
         sftp.close()
 
     if log_callback:
-        log_callback("Sync completed successfully.")
+        log_callback(tr("savemanager_core.log_sync_completed"))

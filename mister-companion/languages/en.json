@@ -325,7 +325,92 @@
     "rsdk_file_filter": "Sonic Mania Data File (Data.rsdk *.rsdk *.RSDK);;All Files (*)",
     "data_rsdk_uploaded": "Data.rsdk uploaded.",
     "uninstall_sonic_mania_title": "Uninstall Sonic Mania MiSTer",
-    "uninstall_sonic_mania_message": "Remove Sonic Mania MiSTer files, Data.rsdk, and the MiSTer.ini entries?"
+    "uninstall_sonic_mania_message": "Remove Sonic Mania MiSTer files, Data.rsdk, and the MiSTer.ini entries?",
+
+    "installed_label": "Installed",
+    "status_not_installed": "✗ Not installed",
+    "status_legacy_3sx": "✓ Legacy 3SX install detected",
+    "status_legacy_pico8": "✓ Legacy v1.1 install detected",
+    "status_update_available": "▲ Update available ({installed_version} → {latest_version})",
+    "status_installed_with_version": "✓ Installed ({version})",
+
+    "not_connected": "Not connected to MiSTer.",
+    "github_latest_3sx_failed": "Unable to determine latest 3s-mister-arm version from GitHub.",
+    "github_zip_3sx_missing": "Unable to find a ZIP asset in the latest 3s-mister-arm release.",
+    "github_latest_pico8_failed": "Unable to determine latest MiSTer Pico-8 version from GitHub.",
+    "github_zip_pico8_missing": "Unable to find a ZIP asset in the latest MiSTer Pico-8 release.",
+    "github_latest_sonic_mania_failed": "Unable to determine latest Sonic Mania MiSTer version from GitHub.",
+    "github_zip_sonic_mania_missing": "Unable to find a ZIP asset in the latest Sonic Mania MiSTer release.",
+
+    "archive_empty_3sx": "The 3s-mister-arm ZIP archive is empty.",
+    "archive_empty_pico8": "The MiSTer Pico-8 ZIP archive is empty.",
+    "archive_empty_sonic_mania": "The Sonic Mania MiSTer ZIP archive is empty.",
+    "archive_missing_pico8_files": "The MiSTer Pico-8 ZIP archive is missing required files:\n- {files}",
+
+    "selected_afs_missing": "Selected SF33RD.AFS file does not exist.",
+    "warning_selected_afs_name": "Warning: selected file name is {name}, expected SF33RD.AFS\n",
+    "threesx_not_installed": "3s-mister-arm is not installed.",
+    "selected_data_rsdk_missing": "Selected Data.rsdk file does not exist.",
+    "warning_selected_data_rsdk_name": "Warning: selected file name is {name}, expected Data.rsdk\n",
+    "sonic_mania_not_installed": "Sonic Mania MiSTer is not installed.",
+
+    "log_detected_legacy_3sx": "Detected legacy 3SX install, migrating to 3S-ARM layout...\n",
+    "log_detected_legacy_pico8": "Detected legacy MiSTer Pico-8 v1.1 install in /media/fat/_Console, migrating to /media/fat/_Other...\n",
+    "log_renaming_launcher": "Renaming launcher: {old_path} -> {new_path}\n",
+    "log_renaming_rbf": "Renaming RBF: {old_path} -> {new_path}\n",
+    "log_renaming_game_data": "Renaming game data: {old_path} -> {new_path}\n",
+    "log_moving_version_marker": "Moving version marker: {old_path} -> {new_path}\n",
+    "log_updated_ini_3sx": "Updated MiSTer.ini to [3S-ARM]\n",
+
+    "log_latest_version": "Latest version on GitHub: {version}\n",
+    "log_downloading": "Downloading: {url}\n",
+    "log_downloaded_bytes": "Downloaded {bytes} bytes.\n",
+    "log_inspecting_archive": "Inspecting archive contents...\n",
+    "log_skipping_readme": "Skipping README: {name}\n",
+    "log_skipping_documentation": "Skipping documentation file: {name}\n",
+    "log_skipping_unhandled_file": "Skipping unhandled file: {name}\n",
+
+    "log_uploading_launcher": "Uploading launcher: {path}\n",
+    "log_uploading_rbf": "Uploading RBF: {path}\n",
+    "log_uploading_path": "Uploading {path}\n",
+    "log_merging_other": "Merging into /media/fat/_Other: {path}\n",
+    "log_merging_games": "Merging into /media/fat/games: {path}\n",
+    "log_skip_bundled_data_rsdk": "Skipping bundled Data.rsdk placeholder. Use Upload Data.rsdk instead.\n",
+
+    "log_ini_3sx_added": "Added [3S-ARM] block to MiSTer.ini\n",
+    "log_ini_3sx_already_present": "[3S-ARM] block already present in MiSTer.ini\n",
+    "log_sonic_ini_added": "Added Sonic Mania blocks to MiSTer.ini\n",
+    "log_sonic_ini_already_present": "Sonic Mania blocks already present in MiSTer.ini\n",
+    "log_stored_version_marker": "Stored installed version marker: {version}\n",
+
+    "log_remove_old_pico8_other": "Removing old PICO-8 RBF files from /media/fat/_Other...\n",
+    "log_remove_legacy_pico8_console": "Removing legacy PICO-8 RBF files from /media/fat/_Console...\n",
+    "log_remove_old_pico8_input_maps": "Removing old PICO-8 input map files...\n",
+    "log_pico8_startup_added": "Added pico8_daemon.sh entry to user-startup.sh\n",
+    "log_pico8_startup_already_present": "pico8_daemon.sh entry already present in user-startup.sh\n",
+
+    "log_uploading_asset": "Uploading asset to {path}\n",
+    "log_uploading_data_rsdk": "Uploading Data.rsdk to {path}\n",
+    "log_file_size": "File size: {bytes} bytes\n",
+    "log_upload_completed": "Upload completed.\n",
+
+    "log_removing_path": "Removing {path}\n",
+    "log_removing_legacy_path": "Removing legacy {path}\n",
+    "log_removing_version_marker": "Removing version marker: {path}\n",
+    "log_removing_legacy_version_marker": "Removing legacy version marker: {path}\n",
+    "log_removed_3sx_ini": "Removed 3S-ARM / 3SX block from MiSTer.ini\n",
+    "log_no_3sx_ini_found": "No 3S-ARM / 3SX block found in MiSTer.ini\n",
+
+    "log_removing_pico8_other": "Removing PICO-8 RBF files from /media/fat/_Other\n",
+    "log_removing_pico8_console": "Removing legacy PICO-8 RBF files from /media/fat/_Console\n",
+    "log_removing_pico8_input_maps": "Removing PICO-8 input map files from /media/fat/config/inputs\n",
+    "log_pico8_startup_removed": "Removed pico8_daemon.sh entry from user-startup.sh\n",
+    "log_pico8_startup_not_found": "No pico8_daemon.sh entry found in user-startup.sh\n",
+
+    "log_remove_old_sonic_rbf": "Removing old Sonic Mania RBF files from /media/fat/_Other...\n",
+    "log_removing_sonic_rbf": "Removing Sonic Mania RBF files from /media/fat/_Other\n",
+    "log_sonic_ini_removed": "Removed Sonic Mania blocks from MiSTer.ini\n",
+    "log_sonic_ini_not_found": "No Sonic Mania blocks found in MiSTer.ini\n"
   },
   "savemanager_tab": {
     "title": "SaveManager",
@@ -693,11 +778,212 @@
     "backup_restored_title": "Backup Restored",
     "backup_restored_message": "MiSTer.ini backup restored successfully.\n\nA reboot is recommended.\n\nReboot now?",
     "restore_failed_title": "Restore Failed",
-    "restore_failed_message": "Unable to restore MiSTer.ini backup:\n{error}"
+    "restore_failed_message": "Unable to restore MiSTer.ini backup:\n{error}",
+    "option_hd_output": "HD Output (Default)",
+    "option_direct_video": "Direct Video (CRT / Scaler)",
+    "option_disabled": "Disabled",
+    "option_enabled": "Enabled",
+    "option_low_latency": "Low Latency",
+    "option_exact_refresh": "Exact Refresh",
+    "option_disabled_dvi": "Disabled (DVI Mode)",
+    "option_full_range": "Full Range",
+    "option_limited_range": "Limited Range",
+    "option_rgb_consumer": "RGB (Consumer TV)",
+    "option_rgb_pvm": "RGB (PVM/BVM)",
+    "option_component": "Component (YPbPr)",
+    "option_svideo": "S-Video",
+    "option_vga_monitor": "VGA Monitor"
   },
   "restore_backup_dialog": {
     "window_title": "Restore MiSTer.ini Backup",
     "select_backup": "Select a backup to restore:",
     "restore": "Restore"
+  },
+  "connection": {
+    "not_connected": "Not connected",
+    "connection_closed": "\nConnection closed.\n",
+    "command_output_header": "\nCommand output:\n"
+  },
+  "device_core": {
+    "storage_label": "{avail} free of {size} ({percent}% used)",
+    "no_usb_storage": "No USB storage detected",
+    "usb_unreadable": "USB detected (unable to read usage)",
+    "no_mister_ip": "No MiSTer IP address is available.",
+    "unsupported_platform": "Unsupported platform: {platform}"
+  },
+  "device_profiles": {
+    "device_name_exists": "Device name already exists."
+  },
+  "flash_tools": {
+    "unsupported_arch": "Unsupported CPU architecture: {machine}",
+
+    "disable_windows_autoplay": "Temporarily disabling Windows AutoPlay...",
+    "windows_settings_restored": "Windows settings restored",
+
+    "admin_required_windows": "Administrator privileges are required to flash an SD card.\n\nPlease restart MiSTer Companion as Administrator and try again.",
+    "root_required_pkexec": "Root privileges are required to flash an SD card.\n\nPlease run MiSTer Companion with pkexec or sudo and try again.",
+    "root_required_sudo": "Root privileges are required to flash an SD card.\n\nPlease run MiSTer Companion with sudo and try again.",
+
+    "using_tools_dir": "Using tools directory: {path}",
+
+    "downloading": "Downloading {name}...",
+    "download_percent": "{name}: {percent}%",
+    "finished_downloading": "Finished downloading {name}",
+
+    "unsafe_tar_path": "Unsafe path in tar archive: {name}",
+    "extracting": "Extracting {name}...",
+    "finished_extracting": "Finished extracting {name}",
+    "removed_archive": "Removed archive: {name}",
+    "unsupported_archive": "Unsupported archive format: {name}",
+
+    "balena_not_found": "balena CLI executable not found. Download it first.",
+    "mr_fusion_not_found": "Mr. Fusion image not found. Download it first.",
+    "superstation_not_found": "SuperStation image not found. Download it first.",
+
+    "balena_removed": "Removed balena CLI files.",
+    "mr_fusion_removed": "Removed Mr. Fusion files.",
+    "superstation_removed": "Removed SuperStation files.",
+
+    "flash_supported_platforms": "Flash SD is only supported on Windows, Linux, and macOS.",
+    "flash_not_supported_platform": "Flash SD is not supported on this platform.",
+
+    "balena_asset_not_found": "Could not find a balena CLI asset for {platform}/{arch}.",
+    "mr_fusion_asset_not_found": "Could not find a Mr. Fusion .img.zip asset.",
+    "superstation_asset_not_found": "Could not find a SuperStation .img.zip asset.",
+
+    "latest_superstation_check_failed": "Unable to check latest SuperStation release: {error}",
+
+    "checking_balena": "Checking latest balena CLI release...",
+    "checking_mr_fusion": "Checking latest Mr. Fusion release...",
+    "checking_superstation": "Checking latest SuperStation release...",
+
+    "using_existing_balena": "Using existing balena CLI: {path}",
+    "using_existing_mr_fusion": "Using existing Mr. Fusion image: {path}",
+    "using_existing_superstation": "Using existing SuperStation image: {path}",
+
+    "balena_ready": "balena CLI ready: {path}",
+    "mr_fusion_ready": "Mr. Fusion image ready: {path}",
+    "superstation_ready": "SuperStation image ready: {path}",
+
+    "latest_superstation": "Latest SuperStation installer: {name}",
+    "latest_superstation_with_date": "Latest SuperStation installer: {name} ({date})",
+
+    "unknown_drive": "Unknown drive",
+    "balena_missing_download_first": "balena CLI is not downloaded yet. Download it first.",
+    "refreshing_drives": "Refreshing available drives...",
+    "failed_get_drives": "Failed to get available drives.",
+    "raw_balena_output": "Raw balena drive output:",
+    "parsed_drives": "Parsed {count} drive(s).",
+
+    "image_not_found": "Image file not found: {path}",
+    "no_drive_selected": "No drive selected.",
+
+    "starting_flash": "Starting flash: {name}",
+    "target_drive": "Target drive: {drive}",
+    "unmounting_disk": "Unmounting disk before flash...",
+
+    "flash_failed_linux_command": "Flash failed because an external Linux system command could not start correctly.\n\nThis is usually caused by a bundled PyInstaller library conflicting with a system library.\nMiSTer Companion tried to use a cleaned subprocess environment, but balena CLI still failed.\n\nExit code: {code}",
+    "flash_failed_exit_code": "Flash failed with exit code {code}.",
+    "flash_failed_windows_permission": "Flash failed. balena CLI reported a permission or drive access error.\n\nRun MiSTer Companion as Administrator and try again.",
+    "flash_failed_linux_library": "Flash failed because an external Linux system command could not start correctly.\n\nThis is usually caused by a bundled PyInstaller library conflicting with a system library.",
+    "flash_failed_linux_permission": "Flash failed. balena CLI reported a permission or drive access error.\n\nRun MiSTer Companion with sudo or pkexec and try again.",
+    "flash_failed_macos_permission": "Flash failed. balena CLI reported a permission or drive access error.\n\nmacOS may have blocked access to the drive. Check System Settings → Privacy & Security → Full Disk Access and ensure balena CLI is permitted.",
+    "flash_failed_permission": "Flash failed. balena CLI reported a permission or drive access error.",
+
+    "flash_complete": "Flash completed successfully.",
+    "ejecting_drive": "Ejecting drive...",
+    "drive_ejected": "Drive ejected.",
+
+    "failed_close_stdout": "Failed to close process stdout: {error}",
+    "waiting_restore_windows": "Waiting briefly before restoring Windows settings...",
+    "restoring_autoplay": "Restoring Windows AutoPlay setting...",
+    "autoplay_restore_complete": "Windows AutoPlay restore complete.",
+    "failed_restore_windows": "Failed to restore Windows settings: {error}"
+  },
+  "mister_settings_backup": {
+    "mister_ini_exists": "MiSTer.ini exists",
+    "no_mister_ini_or_example": "Neither MiSTer.ini nor MiSTer_example.ini exists.",
+    "mister_ini_created_from_example": "MiSTer.ini created from MiSTer_example.ini",
+    "unable_to_create_mister_ini": "Unable to create MiSTer.ini from MiSTer_example.ini",
+    "backup_created": "Backup created"
+  },
+  "retroaccount": {
+    "user_code_missing": "RetroAccount response did not include user_code.",
+    "device_code_missing": "RetroAccount response did not include device_code.",
+    "code_request_failed": "RetroAccount code request failed with status {status}.",
+    "code_request_failed_with_body": "RetroAccount code request failed with status {status}.\n{body}",
+    "token_request_failed": "RetroAccount token request failed with status {status}.",
+    "token_request_failed_with_body": "RetroAccount token request failed with status {status}.\n{body}",
+    "credentials_missing": "RetroAccount response did not include a credentials object.",
+    "device_id_missing": "RetroAccount credentials did not include device_id."
+  },
+  "savemanager_core": {
+    "log_checking_mister_save_folders": "Checking MiSTer save folders...",
+    "log_mister_save_folders_ready": "MiSTer save folders are ready.",
+    "log_old_backup_removed": "Old backup removed: {name}",
+    "log_merging_latest_backup": "Merging latest backup from {device}: {backup}",
+    "no_device_name_or_ip": "No device name or IP available.",
+    "log_starting_backup": "Starting backup...",
+    "log_backup_created": "Backup created: {path}",
+    "log_rebuilding_sync_folder": "Rebuilding sync folder from latest backups...",
+    "selected_backup_not_found": "Selected backup was not found.",
+    "log_restoring_backup": "Restoring backup: {name}",
+    "log_restore_completed": "Restore completed successfully.",
+    "log_sync_folder_missing": "Sync folder missing, rebuilding from latest backups...",
+    "log_downloading_newest_saves": "Downloading newest saves from MiSTer...",
+    "log_uploading_newest_saves": "Uploading newest saves to MiSTer...",
+    "log_sync_completed": "Sync completed successfully."
+  },
+  "scripts_core": {
+    "not_connected": "Not connected to MiSTer.",
+    "rclone_missing_in_zip": "Could not find rclone binary inside the downloaded ZIP.",
+    "rclone_not_executable": "ftp_save_sync rclone upload succeeded, but the binary is not executable on MiSTer.",
+    "daemon_prepare_failed": "ftp_save_sync daemon script could not be prepared on MiSTer.",
+
+    "log_rclone_valid": "Existing ftp_save_sync rclone binary is valid, keeping it.\n",
+    "log_installing_rclone": "Installing ftp_save_sync rclone binary...\n",
+    "log_rclone_installed": "ftp_save_sync rclone installed successfully.\n",
+    "log_writing_daemon": "Writing ftp_save_sync daemon script...\n",
+    "log_bootstrap_complete": "ftp_save_sync bootstrap complete.\n",
+
+    "log_installing_update_all": "Installing update_all...\n",
+    "update_all_script_not_found": "Could not find update_all script.",
+    "log_found_release": "Found release: {name}\n",
+    "log_downloading_release": "Downloading release...\n",
+    "log_installation_complete": "Installation complete.\n",
+
+    "log_installing_zaparoo": "Installing Zaparoo...\n",
+    "zaparoo_release_not_found": "Could not find MiSTer Zaparoo release.",
+    "zaparoo_script_not_found": "Could not find zaparoo.sh inside the release ZIP.",
+    "log_zaparoo_install_complete": "Zaparoo installation complete.\n",
+    "log_zaparoo_next_step": "Next step: Enable the Zaparoo service from the Scripts tab.\n",
+
+    "log_installing_migrate_sd": "Installing migrate_sd...\n",
+    "log_migrate_sd_installed": "migrate_sd installed successfully.\n",
+    "log_run_from_mister_scripts": "Run it from the MiSTer Scripts menu.\n",
+
+    "log_installing_cifs": "Installing cifs_mount scripts...\n",
+    "log_cifs_installed": "CIFS scripts installed.\n",
+
+    "log_installing_auto_time": "Installing auto_time...\n",
+    "log_auto_time_installed": "auto_time installed successfully.\n",
+
+    "log_installing_dav_browser": "Installing dav_browser...\n",
+    "log_dav_browser_installed": "dav_browser installed successfully.\n",
+
+    "log_installing_ftp_save_sync": "Installing ftp_save_sync...\n",
+    "log_ftp_save_sync_uploaded": "ftp_save_sync main script uploaded.\n",
+    "log_ftp_save_sync_installed": "ftp_save_sync installed successfully.\n",
+
+    "log_installing_static_wallpaper": "Installing static_wallpaper...\n",
+    "log_static_wallpaper_installed": "static_wallpaper installed successfully.\n",
+
+    "no_wallpaper_path": "No wallpaper path provided.",
+    "wallpaper_file_not_found": "Wallpaper file not found on MiSTer.",
+    "no_wallpaper_selected": "No wallpaper selected.",
+    "selected_wallpaper_missing": "Selected wallpaper no longer exists on MiSTer.",
+    "unsupported_wallpaper_format": "Unsupported wallpaper format. Use PNG, JPG, or JPEG.",
+    "no_mister_ip": "No MiSTer IP address is available.",
+    "unsupported_platform": "Unsupported platform: {platform}"
   }
 }

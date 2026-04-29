@@ -1,6 +1,8 @@
 import re
 from pathlib import PurePosixPath
 
+from core.language import tr
+
 
 def run_remote_command(connection, command: str):
     if not connection.is_connected():
@@ -35,7 +37,12 @@ def parse_df_line(df_line: str):
         "size": size,
         "avail": avail,
         "percent": percent,
-        "label": f"{avail} free of {size} ({percent}% used)",
+        "label": tr(
+            "device_core.storage_label",
+            avail=avail,
+            size=size,
+            percent=percent,
+        ),
         "style": progress_bar_style_for_percent(percent),
     }
 
@@ -51,7 +58,7 @@ def get_usb_storage_info(connection):
         return {
             "present": False,
             "readable": False,
-            "label": "No USB storage detected",
+            "label": tr("device_core.no_usb_storage"),
         }
 
     line = usb.splitlines()[0]
@@ -61,7 +68,7 @@ def get_usb_storage_info(connection):
         return {
             "present": True,
             "readable": False,
-            "label": "USB detected (unable to read usage)",
+            "label": tr("device_core.usb_unreadable"),
         }
 
     parsed["present"] = True
@@ -101,7 +108,7 @@ def return_to_menu_remote(connection):
 def normalize_core_name(core_name: str) -> str:
     value = (core_name or "").strip()
     if not value:
-        return "Unknown"
+        return tr("common.unknown")
 
     value = value.replace("_", " ")
     value = re.sub(r"\s+", " ", value).strip()
@@ -131,7 +138,7 @@ def normalize_core_name(core_name: str) -> str:
 def prettify_game_name(path_text: str) -> str:
     value = (path_text or "").strip()
     if not value:
-        return "Unknown"
+        return tr("common.unknown")
 
     value = value.rstrip("/")
 
@@ -171,7 +178,7 @@ def get_now_playing(connection):
         active_game = (run_remote_command(connection, "cat /tmp/FULLPATH 2>/dev/null") or "").strip()
 
     core_display = normalize_core_name(core_raw)
-    game_display = prettify_game_name(active_game) if active_game else "Unknown"
+    game_display = prettify_game_name(active_game) if active_game else tr("common.unknown")
 
     is_playing = bool(active_game) and core_display.upper() != "MENU"
 

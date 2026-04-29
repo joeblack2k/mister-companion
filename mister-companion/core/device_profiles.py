@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from core.config import save_config
+from core.language import tr
 
 
 def get_profile_sync_roots():
@@ -42,7 +43,7 @@ def add_device(config_data, device):
 
     for existing_device in devices:
         if existing_device.get("name", "").lower() == device["name"].lower():
-            return False, "Device name already exists."
+            return False, tr("device_profiles.device_name_exists")
 
     devices.append(device)
     config_data["devices"] = devices
@@ -56,7 +57,7 @@ def update_device(config_data, index, updated_device):
     devices = get_devices(config_data)
 
     if index < 0 or index >= len(devices):
-        return False, "Select a device first.", None
+        return False, tr("messages.select_device_first"), None
 
     old_device = devices[index]
     old_name = old_device.get("name", "")
@@ -64,7 +65,7 @@ def update_device(config_data, index, updated_device):
 
     for i, existing_device in enumerate(devices):
         if i != index and existing_device.get("name", "").lower() == updated_device["name"].lower():
-            return False, "Device name already exists.", None
+            return False, tr("device_profiles.device_name_exists"), None
 
     devices[index] = updated_device
     config_data["devices"] = devices
@@ -85,7 +86,7 @@ def delete_device(config_data, index):
     devices = get_devices(config_data)
 
     if index < 0 or index >= len(devices):
-        return False, "Select a device first.", None
+        return False, tr("messages.select_device_first"), None
 
     device_to_delete = devices[index]
     device_name = device_to_delete.get("name", "")
