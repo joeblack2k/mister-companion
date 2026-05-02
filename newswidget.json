@@ -3,12 +3,12 @@
   "items": [
     {
       "id": "v3-stable",
-      "date": "2026-05-01",
+      "date": "2026-05-02",
       "type": "update",
-      "headline": "MiSTer Companion v3.7.0 Released",
-      "message": "MiSTer Companion v3.7.0 is now available.\n\nThis release adds MiSTer OpenBOR 7533 and MiSTer OpenBOR 4086 to the Extras tab, allowing you to install or uninstall them directly from MiSTer Companion.\n\nThe Update_All configurator now includes MiSTer Frontier as a community source.\n\nMiSTer Settings has also been improved with a fix for extra blank lines appearing when switching between Easy and Advanced mode, plus updated analogue video presets including a new RGB (PVM/BVM SoG Alt) option and improved VGA Monitor behavior.\n\nAn official macOS 13+ Intel binary is also now available.\n\nYou can download the latest stable release below.",
-      "url": "https://github.com/Anime0t4ku/mister-companion/releases/tag/v3.7.0",
-      "url_label": "Download v3.7.0"
+      "headline": "MiSTer Companion v3.8.0 Released",
+      "message": "MiSTer Companion v3.8.0 is now available.\n\nThis release adds RetroAchievement Cores to the Extras tab. They are installed separately from your regular cores and use their own MiSTer_RA.ini, so your existing MiSTer setup remains untouched.\n\nThe included MiSTer main binary is installed as MiSTer_RA, so it does not overwrite your stable MiSTer main. During installation, MiSTer Companion duplicates your current MiSTer.ini as MiSTer_RA.ini and adds the RetroAchievement core entries at the bottom, keeping your existing video, CRT, controller, and other custom settings intact.\n\nA new Edit Config option is also included, allowing you to configure your RetroAchievements username, password, popup settings, leaderboards, debug logging, and hardcore mode directly from MiSTer Companion.\n\nTo use the RetroAchievement-enabled cores, configure RetroAchievements first, then select MiSTer_RA.ini from the MiSTer OSD menu and launch the cores from the _RA Cores folder.\n\nThe Extras tab now also includes a manual Check for Updates button for each entry. Automatic update checks could quickly hit GitHub's API rate limit, so manual checks make the Extras tab more reliable and avoid unnecessary GitHub requests.\n\nYou can download the latest stable release below.",
+      "url": "https://github.com/Anime0t4ku/mister-companion/releases/tag/v3.8.0",
+      "url_label": "Download v3.8.0"
     },
     {
       "id": "macos-support",
