@@ -184,14 +184,15 @@ jobs:
           git tag -f Pre-release
           git push origin refs/tags/Pre-release
 
-      - name: Create or Update Release
-        uses: ncipollo/release-action@v1
-        with:
-          prerelease: true
-          allowUpdates: true
-          removeArtifacts: true
-          tag: Pre-release
-          artifacts: |
-            MiSTer-Companion-Windows-x86_64.zip
-            MiSTer-Companion-Linux-x86_64.tar.gz
-            MiSTer-Companion-macOS-Intel.dmg
+      - name: Create Pre-release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create Pre-release \
+            MiSTer-Companion-Windows-x86_64.zip \
+            MiSTer-Companion-Linux-x86_64.tar.gz \
+            MiSTer-Companion-macOS-Intel.dmg \
+            --title "Pre-release" \
+            --notes "Automated pre-release build." \
+            --prerelease
