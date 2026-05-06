@@ -3,12 +3,12 @@
   "items": [
     {
       "id": "v3-stable",
-      "date": "2026-05-05",
+      "date": "2026-05-06",
       "type": "update",
-      "headline": "MiSTer Companion v3.9.3 Released",
-      "message": "MiSTer Companion v3.9.3 is now available.\n\nThis is a small maintenance update focused on Syncthing.\n\nThis release fixes an issue where Syncthing could install through MiSTer Companion but fail to start afterwards.\n\nSyncthing should now install and run correctly directly from the Scripts tab.\n\nYou can download the latest stable release below.",
-      "url": "https://github.com/Anime0t4ku/mister-companion/releases/tag/v3.9.3",
-      "url_label": "Download v3.9.3"
+      "headline": "MiSTer Companion v3.9.4 Released",
+      "message": "MiSTer Companion v3.9.4 is now available.\n\nThis update improves the RetroAchievement Cores installer.\n\nRetroAchievement Cores now use the MGL launcher method instead of the old separate MiSTer_RA.ini setup. RA cores are launched from the new _RA_Cores folder using dedicated .mgl launchers.\n\nExisting installs using the old MiSTer_RA.ini method can be migrated automatically from the Extras tab.\n\nSpecial thanks to sage2050, whose MiSTer_RA script served as the basis for this new install method.\n\nThe stable MiSTer main binary and stable cores remain untouched.\n\nYou can download the latest stable release below.",
+      "url": "https://github.com/Anime0t4ku/mister-companion/releases/tag/v3.9.4",
+      "url_label": "Download v3.9.4"
     },
     {
       "id": "macos-support",
