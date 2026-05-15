@@ -92,7 +92,7 @@ class RemoteDialog(QDialog):
             | Qt.WindowType.FramelessWindowHint
             | Qt.WindowType.WindowSystemMenuHint
         )
-        self.resize(820, 620)
+        self.resize(820, 820)
         self.setMinimumSize(760, 560)
         self.setSizeGripEnabled(False)
         self.setMouseTracking(True)

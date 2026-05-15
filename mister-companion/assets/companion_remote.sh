@@ -830,6 +830,10 @@ remove_startup_block() {
             next
         }
 
+        /companion_remote.sh start --unattended/ {
+            next
+        }
+
         /companion_remote_daemon/ {
             next
         }
@@ -1098,13 +1102,8 @@ EOF
     cat >> "$STARTUP" <<EOF
 
 # MiSTer Companion Remote BEGIN
-if [ ! -e /dev/uinput ] && command -v modprobe >/dev/null 2>&1; then
-    modprobe uinput >/dev/null 2>&1
-fi
-
-if [ -x "$DAEMON" ]; then
-    "$DAEMON" --host "$HOST" --port "$PORT" --path "$WS_PATH" >> "$LOG" 2>&1 &
-fi
+# Start MiSTer Companion Remote
+$SCRIPT_PATH start --unattended &
 # MiSTer Companion Remote END
 EOF
 
@@ -1149,6 +1148,10 @@ uninstall_manager() {
 
     if [ -d "$BASE" ]; then
         rm -rf "$BASE" 2>/dev/null
+    fi
+
+    if [ -f "$SCRIPT_PATH" ]; then
+        rm -f "$SCRIPT_PATH" 2>/dev/null
     fi
 
     print_line "OK: Companion Remote daemon files removed."
