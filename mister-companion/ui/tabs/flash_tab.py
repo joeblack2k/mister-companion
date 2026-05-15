@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from ui.scaling import set_text_button_min_width
 from core.flasher import (
     ensure_balena_cli,
     ensure_mr_fusion_image,
@@ -340,7 +341,7 @@ class FlashTab(QWidget):
         log_button_row.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.toggle_log_button = QPushButton("Show Log")
-        self.toggle_log_button.setFixedWidth(100)
+        set_text_button_min_width(self.toggle_log_button, 100)
         log_button_row.addWidget(self.toggle_log_button)
 
         main_layout.addLayout(log_button_row)

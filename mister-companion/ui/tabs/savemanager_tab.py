@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from ui.scaling import set_text_button_min_width
 from core.savemanager import (
     SYNC_ROOT,
     create_backup,
@@ -176,10 +177,9 @@ class SaveManagerTab(QWidget):
         self.restore_button = QPushButton("Restore Backup")
         self.sync_button = QPushButton("Sync Saves")
 
-        self.backup_button.setFixedWidth(115)
-        self.restore_button.setFixedWidth(115)
-        self.sync_button.setFixedWidth(115)
-
+        set_text_button_min_width(self.backup_button, 115)
+        set_text_button_min_width(self.restore_button, 115)
+        set_text_button_min_width(self.sync_button, 115)
         button_row.addStretch()
         button_row.addWidget(self.backup_button)
         button_row.addWidget(self.restore_button)
@@ -225,9 +225,8 @@ class SaveManagerTab(QWidget):
         self.open_backup_folder_button = QPushButton("Browse Backups")
         self.open_sync_folder_button = QPushButton("Browse Sync Folder")
 
-        self.open_backup_folder_button.setFixedWidth(115)
-        self.open_sync_folder_button.setFixedWidth(132)
-
+        set_text_button_min_width(self.open_backup_folder_button, 115)
+        set_text_button_min_width(self.open_sync_folder_button, 132)
         folder_row.addStretch()
         folder_row.addWidget(self.open_backup_folder_button)
         folder_row.addWidget(self.open_sync_folder_button)
@@ -244,7 +243,7 @@ class SaveManagerTab(QWidget):
         log_header_row = QHBoxLayout()
         log_header_row.addStretch()
         self.hide_log_button = QPushButton("Hide")
-        self.hide_log_button.setFixedWidth(80)
+        set_text_button_min_width(self.hide_log_button, 80)
         log_header_row.addWidget(self.hide_log_button)
         log_group_layout.addLayout(log_header_row)
 
@@ -603,10 +602,16 @@ class SaveManagerTab(QWidget):
         ip_address = self.get_current_ip()
 
         target = get_device_backup_root(profile_name=profile_name, ip_address=ip_address)
-        open_folder(target)
+        try:
+            open_folder(target)
+        except Exception as e:
+            QMessageBox.critical(self, "Open Folder Failed", str(e))
 
     def open_sync_folder(self):
-        open_folder(SYNC_ROOT)
+        try:
+            open_folder(SYNC_ROOT)
+        except Exception as e:
+            QMessageBox.critical(self, "Open Folder Failed", str(e))
 
 
 def pyqt_alignment_center():

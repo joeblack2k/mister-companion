@@ -6,6 +6,8 @@ import sys
 import time
 import zipfile
 from pathlib import Path
+
+from core.open_helpers import open_local_folder, open_smb_share
 from typing import Callable
 
 import requests
@@ -442,66 +444,8 @@ def build_install_state(repo_items: list[dict], installed_files: list[str]) -> t
 
 def open_wallpaper_folder_local(sd_root) -> None:
     wallpaper_dir = ensure_wallpaper_folder_local(sd_root)
-
-    if sys.platform.startswith("win"):
-        subprocess.Popen(["explorer", str(wallpaper_dir)])
-        return
-
-    if sys.platform.startswith("linux"):
-        env = os.environ.copy()
-        subprocess.Popen(
-            ["gio", "open", str(wallpaper_dir)],
-            env=env,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        return
-
-    if sys.platform == "darwin":
-        subprocess.Popen(["open", str(wallpaper_dir)])
-        return
-
-    raise RuntimeError(f"Unsupported platform: {sys.platform}")
+    open_local_folder(wallpaper_dir)
 
 
 def open_wallpaper_folder_on_host(ip: str, username: str = "root", password: str = "1") -> None:
-    if not ip:
-        raise ValueError("No MiSTer IP address is available.")
-
-    if sys.platform.startswith("win"):
-        subprocess.Popen(f'explorer "\\\\{ip}\\sdcard\\wallpapers"')
-        return
-
-    if sys.platform.startswith("linux"):
-        env = os.environ.copy()
-
-        subprocess.run(
-            ["gio", "mount", f"smb://{ip}/"],
-            env=env,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-
-        subprocess.Popen(
-            ["gio", "open", f"smb://{ip}/sdcard/wallpapers"],
-            env=env,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        return
-
-    if sys.platform == "darwin":
-        username = username or "root"
-        password = password or "1"
-        home = os.path.expanduser("~")
-        mount_point = os.path.join(home, "MiSTer_sdcard")
-
-        subprocess.run(["mkdir", "-p", mount_point], capture_output=True)
-        subprocess.run(
-            ["mount_smbfs", f"//{username}:{password}@{ip}/sdcard", mount_point],
-            capture_output=True,
-        )
-        subprocess.Popen(["open", os.path.join(mount_point, "wallpapers")])
-        return
-
-    raise RuntimeError(f"Unsupported platform: {sys.platform}")
+    open_smb_share(ip, "sdcard/wallpapers")

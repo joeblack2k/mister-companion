@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import (
     QMessageBox,
 )
 
+from ui.scaling import set_text_button_min_width
 from core.config import load_config, save_config
 from core.zapscripts import (
     fetch_media_from_db_cache,
@@ -217,8 +218,7 @@ class ZapScriptsTab(QWidget):
 
         self.scan_btn = QPushButton("Scan")
         self.scan_btn.clicked.connect(self._handle_scan_button)
-        self.scan_btn.setFixedWidth(80)
-
+        set_text_button_min_width(self.scan_btn, 80)
         self.progress = QProgressBar()
         self.progress.setRange(0, 100)
         self.progress.setValue(0)

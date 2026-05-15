@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 
 from core.config import save_config
+from core.open_helpers import open_local_folder
 from core.profile_folder_sync import get_profile_or_ip_folder_name
 
 
@@ -120,19 +121,7 @@ def save_retention_setting(config_data, value: int):
 def open_folder(path: Path):
     path = Path(path).resolve()
     path.mkdir(parents=True, exist_ok=True)
-
-    if sys.platform.startswith("win"):
-        subprocess.Popen(["explorer", str(path)])
-    elif sys.platform.startswith("linux"):
-        env = os.environ.copy()
-        subprocess.Popen(
-            ["gio", "open", str(path)],
-            env=env,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-    elif sys.platform == "darwin":
-        subprocess.Popen(["open", str(path)])
+    open_local_folder(path)
 
 
 def _download_dir(sftp, remote_dir: str, local_dir: Path):

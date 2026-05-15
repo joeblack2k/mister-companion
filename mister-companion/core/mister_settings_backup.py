@@ -5,6 +5,7 @@ import sys
 import time
 
 from core.profile_folder_sync import sanitize_folder_name, ip_to_folder_name
+from core.open_helpers import open_local_folder
 
 
 MISTER_SETTINGS_ROOT = "MiSTerSettings"
@@ -43,19 +44,7 @@ def save_mister_settings_retention_setting(config_data, value):
 
 def open_mister_settings_folder(path):
     os.makedirs(path, exist_ok=True)
-
-    if sys.platform.startswith("win"):
-        subprocess.Popen(["explorer", path])
-    elif sys.platform.startswith("linux"):
-        env = os.environ.copy()
-        subprocess.Popen(
-            ["gio", "open", path],
-            env=env,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-    elif sys.platform == "darwin":
-        subprocess.Popen(["open", path])
+    open_local_folder(path)
 
 
 def normalize_mister_ini_filename(ini_filename="MiSTer.ini"):

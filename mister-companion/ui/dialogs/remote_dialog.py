@@ -68,6 +68,10 @@ class RemoteDaemonCommandWorker(QThread):
 
 class RemoteDialog(QDialog):
     RESIZE_MARGIN = 7
+    CONTROL_BUTTON_WIDTH = 60
+    CONTROL_BUTTON_HEIGHT = 34
+    SYSTEM_BUTTON_WIDTH = 70
+    SYSTEM_BUTTON_HEIGHT = 32
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -181,17 +185,34 @@ class RemoteDialog(QDialog):
 
         controls_panel = QFrame()
         controls_panel.setFrameShape(QFrame.Shape.StyledPanel)
-        controls_layout = QHBoxLayout(controls_panel)
+        controls_layout = QVBoxLayout(controls_panel)
         controls_layout.setContentsMargins(10, 10, 10, 10)
-        controls_layout.setSpacing(16)
+        controls_layout.setSpacing(12)
+
+        controls_title = QLabel("Controller")
+        controls_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        controls_title.setStyleSheet("font-weight: bold;")
+        controls_layout.addWidget(controls_title)
+
+        controller_row = QHBoxLayout()
+        controller_row.setContentsMargins(0, 0, 0, 0)
+        controller_row.setSpacing(22)
 
         dpad_widget = self.build_dpad_section()
         system_widget = self.build_system_section()
         buttons_widget = self.build_buttons_section()
 
-        controls_layout.addWidget(dpad_widget, 1)
-        controls_layout.addWidget(system_widget, 1)
-        controls_layout.addWidget(buttons_widget, 1)
+        controller_row.addStretch(1)
+        controller_row.addWidget(dpad_widget, 0, Qt.AlignmentFlag.AlignCenter)
+        controller_row.addSpacing(10)
+        controller_row.addWidget(system_widget, 0, Qt.AlignmentFlag.AlignCenter)
+        controller_row.addSpacing(10)
+        controller_row.addWidget(buttons_widget, 0, Qt.AlignmentFlag.AlignCenter)
+        controller_row.addStretch(1)
+
+        controls_layout.addStretch(1)
+        controls_layout.addLayout(controller_row)
+        controls_layout.addStretch(1)
 
         root_layout.addWidget(controls_panel, 1)
 
@@ -206,7 +227,7 @@ class RemoteDialog(QDialog):
         keyboard_layout.addWidget(keyboard_title)
 
         keyboard_row = QHBoxLayout()
-        self.keyboard_button = QPushButton("Enable Keyboard Passthrough")
+        self.keyboard_button = QPushButton("Enable")
         self.keyboard_button.setCheckable(True)
         keyboard_row.addWidget(self.keyboard_button)
 
@@ -402,18 +423,20 @@ class RemoteDialog(QDialog):
 
         self.setGeometry(geometry)
 
+    def prepare_control_button(self, button: QPushButton):
+        button.setMinimumHeight(self.CONTROL_BUTTON_HEIGHT)
+        button.setFixedWidth(self.CONTROL_BUTTON_WIDTH)
+
+    def prepare_system_button(self, button: QPushButton):
+        button.setMinimumHeight(self.SYSTEM_BUTTON_HEIGHT)
+        button.setFixedWidth(self.SYSTEM_BUTTON_WIDTH)
+
     def build_dpad_section(self):
-        widget = QFrame()
-        widget.setFrameShape(QFrame.Shape.StyledPanel)
+        widget = QWidget()
 
         layout = QGridLayout(widget)
-        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(8)
-
-        title = QLabel("D-Pad")
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setStyleSheet("font-weight: bold;")
-        layout.addWidget(title, 0, 0, 1, 3)
 
         self.up_button = QPushButton("Up")
         self.down_button = QPushButton("Down")
@@ -426,58 +449,59 @@ class RemoteDialog(QDialog):
             self.left_button,
             self.right_button,
         ):
-            button.setMinimumHeight(34)
+            self.prepare_control_button(button)
 
-        layout.addWidget(self.up_button, 1, 1)
-        layout.addWidget(self.left_button, 2, 0)
-        layout.addWidget(self.right_button, 2, 2)
-        layout.addWidget(self.down_button, 3, 1)
+        layout.addWidget(self.up_button, 0, 1)
+        layout.addWidget(self.left_button, 1, 0)
+        layout.addWidget(self.right_button, 1, 2)
+        layout.addWidget(self.down_button, 2, 1)
 
-        layout.setRowStretch(4, 1)
+        layout.setColumnMinimumWidth(0, self.CONTROL_BUTTON_WIDTH)
+        layout.setColumnMinimumWidth(1, self.CONTROL_BUTTON_WIDTH)
+        layout.setColumnMinimumWidth(2, self.CONTROL_BUTTON_WIDTH)
+
         return widget
 
     def build_system_section(self):
-        widget = QFrame()
-        widget.setFrameShape(QFrame.Shape.StyledPanel)
+        widget = QWidget()
 
         layout = QVBoxLayout(widget)
-        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(8)
 
-        title = QLabel("System")
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setStyleSheet("font-weight: bold;")
-        layout.addWidget(title)
-
-        layout.addStretch()
-
-        self.select_button = QPushButton("Select")
         self.osd_button = QPushButton("OSD")
+        self.select_button = QPushButton("Select")
         self.start_button = QPushButton("Start")
 
-        for button in (
-            self.select_button,
-            self.osd_button,
-            self.start_button,
-        ):
-            button.setMinimumHeight(34)
-            layout.addWidget(button)
+        self.prepare_system_button(self.osd_button)
+        self.prepare_system_button(self.select_button)
+        self.prepare_system_button(self.start_button)
 
-        layout.addStretch()
+        osd_row = QHBoxLayout()
+        osd_row.setContentsMargins(0, 0, 0, 0)
+        osd_row.addStretch()
+        osd_row.addWidget(self.osd_button)
+        osd_row.addStretch()
+
+        select_start_row = QHBoxLayout()
+        select_start_row.setContentsMargins(0, 0, 0, 0)
+        select_start_row.setSpacing(8)
+        select_start_row.addWidget(self.select_button)
+        select_start_row.addWidget(self.start_button)
+
+        layout.addStretch(1)
+        layout.addLayout(osd_row)
+        layout.addLayout(select_start_row)
+        layout.addStretch(1)
+
         return widget
 
     def build_buttons_section(self):
-        widget = QFrame()
-        widget.setFrameShape(QFrame.Shape.StyledPanel)
+        widget = QWidget()
 
         layout = QGridLayout(widget)
-        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(8)
-
-        title = QLabel("Buttons")
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setStyleSheet("font-weight: bold;")
-        layout.addWidget(title, 0, 0, 1, 3)
 
         self.y_button = QPushButton("Y")
         self.x_button = QPushButton("X")
@@ -490,14 +514,17 @@ class RemoteDialog(QDialog):
             self.a_button,
             self.b_button,
         ):
-            button.setMinimumHeight(34)
+            self.prepare_control_button(button)
 
-        layout.addWidget(self.y_button, 1, 1)
-        layout.addWidget(self.x_button, 2, 0)
-        layout.addWidget(self.a_button, 2, 2)
-        layout.addWidget(self.b_button, 3, 1)
+        layout.addWidget(self.y_button, 0, 1)
+        layout.addWidget(self.x_button, 1, 0)
+        layout.addWidget(self.a_button, 1, 2)
+        layout.addWidget(self.b_button, 2, 1)
 
-        layout.setRowStretch(4, 1)
+        layout.setColumnMinimumWidth(0, self.CONTROL_BUTTON_WIDTH)
+        layout.setColumnMinimumWidth(1, self.CONTROL_BUTTON_WIDTH)
+        layout.setColumnMinimumWidth(2, self.CONTROL_BUTTON_WIDTH)
+
         return widget
 
     def bind_controller_button(self, button: QPushButton, kind: str, name: str):
@@ -787,7 +814,7 @@ class RemoteDialog(QDialog):
             if self.keyboard_button.isChecked():
                 self.keyboard_button.setChecked(False)
             else:
-                self.keyboard_button.setText("Enable Keyboard Passthrough")
+                self.keyboard_button.setText("Enable")
 
     def send_controller_button(self, name: str, action: str = "tap"):
         if self.remote_client is None:
@@ -822,11 +849,11 @@ class RemoteDialog(QDialog):
         self.keyboard_passthrough_enabled = bool(checked)
 
         if checked:
-            self.keyboard_button.setText("Disable Keyboard Passthrough")
+            self.keyboard_button.setText("Disable")
             self.setFocus(Qt.FocusReason.OtherFocusReason)
             self.append_log("Keyboard passthrough enabled.")
         else:
-            self.keyboard_button.setText("Enable Keyboard Passthrough")
+            self.keyboard_button.setText("Enable")
             self.release_all_inputs()
             self.append_log("Keyboard passthrough disabled.")
 

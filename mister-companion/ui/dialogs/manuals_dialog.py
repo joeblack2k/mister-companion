@@ -689,7 +689,10 @@ class ManualsDialog(QDialog):
             self.update_cache_buttons()
             return
 
-        open_cache_folder()
+        try:
+            open_cache_folder()
+        except Exception as e:
+            QMessageBox.critical(self, "Open Folder Failed", str(e))
 
     def clear_viewer_temp_cache_on_startup(self):
         temp_root = get_manuals_cache_root() / ".viewer_temp"

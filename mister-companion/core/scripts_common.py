@@ -4,6 +4,8 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+from core.open_helpers import open_local_folder, open_smb_share
+
 
 UPDATE_ALL_JSON_PATH = "/media/fat/Scripts/.config/update_all/update_all.json"
 DOWNLOADER_INI_PATH = "/media/fat/downloader.ini"
@@ -562,63 +564,10 @@ def get_scripts_status_local(sd_root) -> ScriptsStatus:
 
 
 def open_scripts_folder_on_host(ip, username="root", password="1"):
-    if not ip:
-        raise ValueError("No MiSTer IP address is available.")
-
-    if sys.platform.startswith("win"):
-        subprocess.Popen(f'explorer "\\\\{ip}\\sdcard\\Scripts"')
-        return
-
-    if sys.platform.startswith("linux"):
-        env = os.environ.copy()
-        subprocess.run(
-            ["gio", "mount", f"smb://{ip}/"],
-            env=env,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        subprocess.Popen(
-            ["gio", "open", f"smb://{ip}/sdcard/Scripts"],
-            env=env,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        return
-
-    if sys.platform == "darwin":
-        username = username or "root"
-        password = password or "1"
-        home = os.path.expanduser("~")
-        mount_point = os.path.join(home, "MiSTer_sdcard")
-        subprocess.run(["mkdir", "-p", mount_point], capture_output=True)
-        subprocess.run(
-            ["mount_smbfs", f"//{username}:{password}@{ip}/sdcard", mount_point],
-            capture_output=True,
-        )
-        subprocess.Popen(["open", os.path.join(mount_point, "Scripts")])
-        return
-
-    raise RuntimeError(f"Unsupported platform: {sys.platform}")
+    open_smb_share(ip, "sdcard/Scripts")
 
 
 def open_scripts_folder_local(sd_root):
     scripts_dir = _local_path(sd_root, "/media/fat/Scripts")
     scripts_dir.mkdir(parents=True, exist_ok=True)
-
-    if sys.platform.startswith("win"):
-        os.startfile(str(scripts_dir))
-        return
-
-    if sys.platform.startswith("linux"):
-        subprocess.Popen(
-            ["xdg-open", str(scripts_dir)],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        return
-
-    if sys.platform == "darwin":
-        subprocess.Popen(["open", str(scripts_dir)])
-        return
-
-    raise RuntimeError(f"Unsupported platform: {sys.platform}")
+    open_local_folder(scripts_dir)

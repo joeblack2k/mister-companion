@@ -6,6 +6,7 @@ from PyQt6.QtWidgets import (
     QLabel, QPushButton, QMessageBox, QProgressBar
 )
 
+from ui.scaling import set_text_button_min_width
 from core.device_actions import (
     disable_smb_offline,
     disable_smb_remote,
@@ -124,8 +125,7 @@ class DeviceTab(QWidget):
         self.usb_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.refresh_button = QPushButton("Refresh")
-        self.refresh_button.setFixedWidth(120)
-
+        set_text_button_min_width(self.refresh_button, 120)
         storage_layout.addWidget(self.sd_title_label)
 
         sd_bar_row = QHBoxLayout()
@@ -175,10 +175,9 @@ class DeviceTab(QWidget):
         )
         self.open_share_button = QPushButton(self.open_share_button_text())
 
-        self.enable_smb_button.setFixedWidth(170)
-        self.disable_smb_button.setFixedWidth(170)
-        self.open_share_button.setFixedWidth(170)
-
+        set_text_button_min_width(self.enable_smb_button, 170)
+        set_text_button_min_width(self.disable_smb_button, 170)
+        set_text_button_min_width(self.open_share_button, 170)
         sharing_buttons_row.addStretch()
         sharing_buttons_row.addWidget(self.enable_smb_button)
         sharing_buttons_row.addWidget(self.disable_smb_button)
@@ -198,11 +197,9 @@ class DeviceTab(QWidget):
         reboot_row.setSpacing(16)
 
         self.return_to_menu_button = QPushButton("Return to Menu")
-        self.return_to_menu_button.setFixedWidth(160)
-
+        set_text_button_min_width(self.return_to_menu_button, 160)
         self.reboot_button = QPushButton("Reboot MiSTer")
-        self.reboot_button.setFixedWidth(160)
-
+        set_text_button_min_width(self.reboot_button, 160)
         reboot_row.addStretch()
         reboot_row.addWidget(self.return_to_menu_button)
         reboot_row.addWidget(self.reboot_button)

@@ -2,6 +2,8 @@ import os
 import shutil
 import sys
 from pathlib import Path
+
+from core.open_helpers import open_local_folder
 from shlex import quote
 
 
@@ -126,16 +128,7 @@ def remove_cached_pdf(path):
 
 def open_cache_folder():
     root = ensure_manuals_cache_root()
-
-    if sys.platform.startswith("win"):
-        os.startfile(str(root))
-        return
-
-    if sys.platform == "darwin":
-        os.system(f"open {quote(str(root))}")
-        return
-
-    os.system(f"xdg-open {quote(str(root))}")
+    open_local_folder(root)
 
 
 def remote_path_exists(connection, path: str) -> bool:

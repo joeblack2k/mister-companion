@@ -1403,7 +1403,10 @@ class MiSTerSettingsTab(QWidget):
             pass
 
     def open_mister_settings_folder(self):
-        open_mister_settings_folder(self.get_mister_settings_device_path())
+        try:
+            open_mister_settings_folder(self.get_mister_settings_device_path())
+        except Exception as e:
+            QMessageBox.critical(self, "Open Backup Folder Failed", str(e))
 
     def set_font_combo_loading(self):
         self.easy_font_combo.blockSignals(True)

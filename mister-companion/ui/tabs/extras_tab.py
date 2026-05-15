@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from ui.scaling import set_text_button_min_width
 from core.device_actions import return_to_menu_remote
 from core.extras_actions import (
     get_3sx_status,
@@ -363,7 +364,7 @@ class ExtrasTab(QWidget):
         header_row.addStretch()
 
         self.hide_console_button = QPushButton("Hide")
-        self.hide_console_button.setFixedWidth(70)
+        set_text_button_min_width(self.hide_console_button, 70)
         header_row.addWidget(self.hide_console_button)
         console_layout.addLayout(header_row)
 
@@ -451,17 +452,13 @@ class ExtrasTab(QWidget):
         layout.setSpacing(10)
 
         self.install_update_3sx_button = QPushButton("Install")
-        self.install_update_3sx_button.setFixedWidth(170)
-
+        set_text_button_min_width(self.install_update_3sx_button, 170)
         self.check_updates_3sx_button = QPushButton("Check for Updates")
-        self.check_updates_3sx_button.setFixedWidth(170)
-
+        set_text_button_min_width(self.check_updates_3sx_button, 170)
         self.upload_afs_button = QPushButton("Upload SF33RD.AFS")
-        self.upload_afs_button.setFixedWidth(190)
-
+        set_text_button_min_width(self.upload_afs_button, 190)
         self.uninstall_3sx_button = QPushButton("Uninstall")
-        self.uninstall_3sx_button.setFixedWidth(170)
-
+        set_text_button_min_width(self.uninstall_3sx_button, 170)
         layout.addLayout(
             self._build_button_row(
                 self.install_update_3sx_button,
@@ -485,17 +482,13 @@ class ExtrasTab(QWidget):
         layout.setSpacing(10)
 
         self.install_update_sonic_mania_button = QPushButton("Install")
-        self.install_update_sonic_mania_button.setFixedWidth(170)
-
+        set_text_button_min_width(self.install_update_sonic_mania_button, 170)
         self.check_updates_sonic_mania_button = QPushButton("Check for Updates")
-        self.check_updates_sonic_mania_button.setFixedWidth(170)
-
+        set_text_button_min_width(self.check_updates_sonic_mania_button, 170)
         self.upload_data_rsdk_button = QPushButton("Upload Data.rsdk")
-        self.upload_data_rsdk_button.setFixedWidth(190)
-
+        set_text_button_min_width(self.upload_data_rsdk_button, 190)
         self.uninstall_sonic_mania_button = QPushButton("Uninstall")
-        self.uninstall_sonic_mania_button.setFixedWidth(170)
-
+        set_text_button_min_width(self.uninstall_sonic_mania_button, 170)
         layout.addLayout(
             self._build_button_row(
                 self.install_update_sonic_mania_button,
@@ -519,14 +512,11 @@ class ExtrasTab(QWidget):
         layout.setSpacing(10)
 
         self.install_update_zaparoo_launcher_button = QPushButton("Install")
-        self.install_update_zaparoo_launcher_button.setFixedWidth(170)
-
+        set_text_button_min_width(self.install_update_zaparoo_launcher_button, 170)
         self.check_updates_zaparoo_launcher_button = QPushButton("Check for Updates")
-        self.check_updates_zaparoo_launcher_button.setFixedWidth(170)
-
+        set_text_button_min_width(self.check_updates_zaparoo_launcher_button, 170)
         self.uninstall_zaparoo_launcher_button = QPushButton("Uninstall")
-        self.uninstall_zaparoo_launcher_button.setFixedWidth(170)
-
+        set_text_button_min_width(self.uninstall_zaparoo_launcher_button, 170)
         layout.addLayout(
             self._build_button_row(
                 self.install_update_zaparoo_launcher_button,
@@ -549,17 +539,13 @@ class ExtrasTab(QWidget):
         layout.setSpacing(10)
 
         self.install_update_ra_cores_button = QPushButton("Install")
-        self.install_update_ra_cores_button.setFixedWidth(170)
-
+        set_text_button_min_width(self.install_update_ra_cores_button, 170)
         self.check_updates_ra_cores_button = QPushButton("Check for Updates")
-        self.check_updates_ra_cores_button.setFixedWidth(170)
-
+        set_text_button_min_width(self.check_updates_ra_cores_button, 170)
         self.edit_ra_cores_config_button = QPushButton("Edit Config")
-        self.edit_ra_cores_config_button.setFixedWidth(170)
-
+        set_text_button_min_width(self.edit_ra_cores_config_button, 170)
         self.uninstall_ra_cores_button = QPushButton("Uninstall")
-        self.uninstall_ra_cores_button.setFixedWidth(170)
-
+        set_text_button_min_width(self.uninstall_ra_cores_button, 170)
         layout.addLayout(
             self._build_button_row(
                 self.install_update_ra_cores_button,
