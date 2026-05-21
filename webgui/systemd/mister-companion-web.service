@@ -1,0 +1,21 @@
+[Unit]
+Description=MiSTer Companion Web
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=homelab
+Group=homelab
+WorkingDirectory=/var/lib/mister-companion-web
+Environment=APP_ROOT=/opt/mister-companion-web/app
+Environment=APP_STATE_DIR=/var/lib/mister-companion-web
+Environment=UPSTREAM_DIR=/opt/mister-companion-web/app/vendor/mister-companion/mister-companion
+Environment=FRONTEND_DIST=/opt/mister-companion-web/app/frontend/dist
+Environment=FLASH_HELPER_URL=http://192.168.2.22:18080
+Environment=FLASH_HELPER_TOKEN_FILE=/var/lib/mister-companion-web/flash-helper-token
+ExecStart=/opt/mister-companion-web/venv/bin/uvicorn backend.main:app --app-dir /opt/mister-companion-web/app --host 0.0.0.0 --port 8080
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

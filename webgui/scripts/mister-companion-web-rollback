@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+APP_DIR="/opt/mister-companion-web/app"
+STATE_DIR="/var/lib/mister-companion-web"
+SHA_FILE="${STATE_DIR}/rollback/last-upstream-sha"
+
+if [[ ! -s "${SHA_FILE}" ]]; then
+  echo "No upstream rollback SHA recorded" >&2
+  exit 1
+fi
+
+runuser -u homelab -- git -C "${APP_DIR}/vendor/mister-companion" reset --hard "$(cat "${SHA_FILE}")"
+systemctl restart mister-companion-web.service
+systemctl --no-pager --full status mister-companion-web.service

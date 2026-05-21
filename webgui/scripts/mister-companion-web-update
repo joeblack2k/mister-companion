@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+APP_DIR="/opt/mister-companion-web/app"
+VENV="/opt/mister-companion-web/venv"
+STATE_DIR="/var/lib/mister-companion-web"
+ROLLBACK_DIR="${STATE_DIR}/rollback"
+mkdir -p "${ROLLBACK_DIR}"
+
+if [[ -d "${APP_DIR}/vendor/mister-companion/.git" ]]; then
+  runuser -u homelab -- git -C "${APP_DIR}/vendor/mister-companion" rev-parse HEAD > "${ROLLBACK_DIR}/last-upstream-sha"
+  runuser -u homelab -- git -C "${APP_DIR}/vendor/mister-companion" pull --ff-only
+fi
+
+"${VENV}/bin/pip" install -r "${APP_DIR}/backend/requirements.txt"
+runuser -u homelab -- npm --prefix "${APP_DIR}/frontend" install
+runuser -u homelab -- npm --prefix "${APP_DIR}/frontend" run build
+systemctl restart mister-companion-web.service
+systemctl --no-pager --full status mister-companion-web.service

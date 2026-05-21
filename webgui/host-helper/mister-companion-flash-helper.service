@@ -1,0 +1,13 @@
+[Unit]
+Description=MiSTer Companion removable SD flash helper
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/sbin/mister-companion-flash-helper.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

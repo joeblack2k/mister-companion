@@ -1,0 +1,1228 @@
+from __future__ import annotations
+
+import asyncio
+import json
+import os
+import queue
+import re
+import shutil
+import socket
+import subprocess
+import sys
+import threading
+import time
+import uuid
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
+from pathlib import Path, PurePosixPath
+from typing import Any, Callable
+
+import requests
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
+
+
+STATE_DIR = Path(os.environ.get("APP_STATE_DIR", "/var/lib/mister-companion-web"))
+CONFIG_DIR = Path(os.environ.get("APP_CONFIG_DIR", str(STATE_DIR)))
+DATA_DIR = Path(os.environ.get("APP_DATA_DIR", str(STATE_DIR)))
+APP_ROOT = Path(os.environ.get("APP_ROOT", "/opt/mister-companion-web/app"))
+UPSTREAM_DIR = Path(
+    os.environ.get(
+        "UPSTREAM_DIR",
+        str(APP_ROOT / "vendor" / "mister-companion" / "mister-companion"),
+    )
+)
+FRONTEND_DIST = Path(os.environ.get("FRONTEND_DIST", str(APP_ROOT / "frontend" / "dist")))
+FLASH_HELPER_URL = os.environ.get("FLASH_HELPER_URL", "http://192.168.2.22:18080").rstrip("/")
+FLASH_HELPER_DATA_PREFIX = os.environ.get(
+    "FLASH_HELPER_DATA_PREFIX",
+    "/srv/vm-data/mister-companion-web/var-lib",
+)
+FLASH_HELPER_TOKEN_FILE = Path(
+    os.environ.get("FLASH_HELPER_TOKEN_FILE", str(CONFIG_DIR / "flash-helper-token"))
+)
+
+STATE_DIR.mkdir(parents=True, exist_ok=True)
+CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+(DATA_DIR / "logs").mkdir(exist_ok=True)
+(DATA_DIR / "downloads").mkdir(exist_ok=True)
+(DATA_DIR / "backups").mkdir(exist_ok=True)
+(DATA_DIR / "cache").mkdir(exist_ok=True)
+os.chdir(CONFIG_DIR)
+
+if UPSTREAM_DIR.exists():
+    sys.path.insert(0, str(UPSTREAM_DIR))
+
+try:
+    from core.app_info import APP_NAME, APP_VERSION
+    from core.config import load_config, save_config
+    from core.connection import MiSTerConnection
+    from core.device_actions import (
+        disable_smb_offline,
+        disable_smb_remote,
+        enable_smb_offline,
+        enable_smb_remote,
+        get_sd_storage_info,
+        get_sd_storage_info_offline,
+        get_usb_storage_info,
+        is_smb_enabled,
+        is_smb_enabled_offline,
+        return_to_menu_remote,
+    )
+    from core.device_profiles import (
+        add_device,
+        delete_device,
+        get_device_by_index,
+        get_devices,
+        update_device,
+    )
+except Exception as exc:  # pragma: no cover - surfaced by /api/health
+    APP_NAME = "MiSTer Companion"
+    APP_VERSION = "unknown"
+    MiSTerConnection = None  # type: ignore[assignment]
+    IMPORT_ERROR = str(exc)
+else:
+    IMPORT_ERROR = ""
+
+
+app = FastAPI(title="MiSTer Companion Web", version="0.1.0")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+connection = MiSTerConnection() if MiSTerConnection else None
+state_lock = threading.RLock()
+state_path = CONFIG_DIR / "web-state.json"
+profiles_path = CONFIG_DIR / "profiles.json"
+
+
+def app_config() -> dict[str, Any]:
+    if IMPORT_ERROR:
+        raise HTTPException(status_code=500, detail=IMPORT_ERROR)
+    return load_config()
+
+
+def load_state() -> dict[str, Any]:
+    if not state_path.exists():
+        return {"mode": "online", "offline_sd_root": "", "ra": {}}
+    try:
+        data = json.loads(state_path.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            return {"mode": "online", "offline_sd_root": "", "ra": {}}
+        data.setdefault("mode", "online")
+        data.setdefault("offline_sd_root", "")
+        data.setdefault("ra", {})
+        return data
+    except Exception:
+        return {"mode": "online", "offline_sd_root": "", "ra": {}}
+
+
+def save_state(data: dict[str, Any]) -> dict[str, Any]:
+    with state_lock:
+        state_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    return data
+
+
+runtime_state = load_state()
+
+
+def _profile_id() -> str:
+    return uuid.uuid4().hex[:12]
+
+
+def _redact_profile(profile: dict[str, Any]) -> dict[str, Any]:
+    public = dict(profile)
+    public["has_password"] = bool(public.get("password"))
+    public.pop("password", None)
+    public.setdefault("id", _profile_id())
+    public.setdefault("name", public.get("host") or public.get("ip") or "MiSTer")
+    public.setdefault("host", public.get("ip") or "")
+    public.setdefault("username", "root")
+    return public
+
+
+def load_profiles_private() -> list[dict[str, Any]]:
+    if profiles_path.exists():
+        try:
+            data = json.loads(profiles_path.read_text(encoding="utf-8"))
+            if isinstance(data, list):
+                return [p for p in data if isinstance(p, dict)]
+        except Exception:
+            pass
+
+    profiles: list[dict[str, Any]] = []
+    if not IMPORT_ERROR:
+        try:
+            for device in get_devices(app_config()):
+                item = dict(device)
+                item["id"] = item.get("id") or _profile_id()
+                item["host"] = item.get("host") or item.get("ip") or ""
+                item["username"] = item.get("username") or "root"
+                profiles.append(item)
+        except Exception:
+            profiles = []
+    save_profiles_private(profiles)
+    return profiles
+
+
+def save_profiles_private(profiles: list[dict[str, Any]]) -> None:
+    profiles_path.write_text(json.dumps(profiles, indent=2), encoding="utf-8")
+
+
+def public_profiles() -> list[dict[str, Any]]:
+    return [_redact_profile(profile) for profile in load_profiles_private()]
+
+
+def find_profile_private(profile_id: str) -> dict[str, Any]:
+    for profile in load_profiles_private():
+        if str(profile.get("id")) == profile_id:
+            return profile
+    raise HTTPException(status_code=404, detail="Profile not found")
+
+
+def is_connected() -> bool:
+    return bool(connection and connection.is_connected())
+
+
+def is_offline() -> bool:
+    return runtime_state.get("mode") == "offline"
+
+
+def require_connected() -> Any:
+    if not connection or not connection.is_connected():
+        raise HTTPException(status_code=409, detail="Not connected to MiSTer")
+    return connection
+
+
+def require_sd_root() -> Path:
+    root = Path(str(runtime_state.get("offline_sd_root") or "")).expanduser()
+    if not root.exists() or not root.is_dir():
+        raise HTTPException(status_code=409, detail="Offline SD root is not available")
+    return root
+
+
+def remote_to_local(sd_root: Path, remote_path: str) -> Path:
+    normalized = remote_path.replace("\\", "/")
+    if normalized == "/media/fat":
+        rel = ""
+    elif normalized.startswith("/media/fat/"):
+        rel = normalized[len("/media/fat/") :]
+    else:
+        rel = normalized.lstrip("/")
+    return sd_root / rel
+
+
+def sftp_read_text(remote_path: str) -> str:
+    conn = require_connected()
+    sftp = conn.client.open_sftp()
+    try:
+        with sftp.open(remote_path, "r") as handle:
+            data = handle.read()
+            if isinstance(data, bytes):
+                return data.decode("utf-8", errors="ignore")
+            return str(data)
+    finally:
+        sftp.close()
+
+
+def sftp_write_text(remote_path: str, text: str) -> None:
+    conn = require_connected()
+    sftp = conn.client.open_sftp()
+    try:
+        parent = str(PurePosixPath(remote_path).parent)
+        conn.run_command(f'mkdir -p "{parent}"')
+        with sftp.open(remote_path, "w") as handle:
+            handle.write(text)
+    finally:
+        sftp.close()
+
+
+def sftp_exists(remote_path: str) -> bool:
+    conn = require_connected()
+    sftp = conn.client.open_sftp()
+    try:
+        try:
+            sftp.stat(remote_path)
+            return True
+        except Exception:
+            return False
+    finally:
+        sftp.close()
+
+
+INI_SETTINGS_SCHEMA: list[dict[str, Any]] = [
+    {
+        "key": "video_mode",
+        "label": "Video mode",
+        "type": "select",
+        "options": [
+            {"value": "0", "label": "Auto / HDMI preferred"},
+            {"value": "8", "label": "1080p 60Hz"},
+            {"value": "6", "label": "720p 60Hz"},
+            {"value": "1", "label": "VGA 640x480"},
+        ],
+        "what": "Kiest de HDMI/VGA outputmodus van de MiSTer.",
+        "who": "Voor iedereen die beeldresolutie of compatibiliteit met een TV/monitor wil afstemmen.",
+    },
+    {
+        "key": "vsync_adjust",
+        "label": "VSync adjust",
+        "type": "select",
+        "options": [
+            {"value": "0", "label": "Safe / compatible"},
+            {"value": "1", "label": "Low latency"},
+            {"value": "2", "label": "Lowest latency"},
+        ],
+        "what": "Bepaalt hoeveel de output timing mag meebewegen met de core.",
+        "who": "Voor spelers die minder input lag willen of juist maximale TV-compatibiliteit zoeken.",
+    },
+    {
+        "key": "vscale_mode",
+        "label": "Vertical scale",
+        "type": "select",
+        "options": [
+            {"value": "0", "label": "Fit screen"},
+            {"value": "1", "label": "Integer-ish scale"},
+            {"value": "2", "label": "Integer scale"},
+        ],
+        "what": "Regelt hoe MiSTer verticale pixels schaalt.",
+        "who": "Voor wie scherpe integer-scaling of juist een gevuld scherm wil.",
+    },
+    {
+        "key": "hdmi_limited",
+        "label": "HDMI limited range",
+        "type": "checkbox",
+        "what": "Schakelt beperkt HDMI-kleurbereik in.",
+        "who": "Voor TV's die zwart/grijs verkeerd tonen met full-range RGB.",
+    },
+    {
+        "key": "direct_video",
+        "label": "Direct video",
+        "type": "checkbox",
+        "what": "Stuurt een analoog-vriendelijke videomodus via HDMI-adapters uit.",
+        "who": "Voor CRT/scaler setups met Direct Video adapters.",
+    },
+    {
+        "key": "ypbpr",
+        "label": "YPbPr component",
+        "type": "checkbox",
+        "what": "Gebruikt component-kleursignaal voor analoge output.",
+        "who": "Voor component/CRT setups in plaats van RGB.",
+    },
+    {
+        "key": "vga_scaler",
+        "label": "VGA scaler",
+        "type": "checkbox",
+        "what": "Laat de scaler ook actief zijn op VGA/IO-board output.",
+        "who": "Voor VGA-monitoren of scalers die een vaste resolutie verwachten.",
+    },
+    {
+        "key": "bootcore",
+        "label": "Boot core",
+        "type": "text",
+        "what": "Laadt automatisch een core bij het starten.",
+        "who": "Voor setups die direct in een favoriete core of menuvariant moeten starten.",
+    },
+    {
+        "key": "recents",
+        "label": "Recent menu",
+        "type": "checkbox",
+        "what": "Toont recent gebruikte cores/games in het menu.",
+        "who": "Voor wie vaak dezelfde games of cores start.",
+    },
+]
+
+
+def parse_ini_values(text: str) -> dict[str, str]:
+    values: dict[str, str] = {}
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith(("#", ";", "[")) or "=" not in stripped:
+            continue
+        key, value = stripped.split("=", 1)
+        values[key.strip()] = value.split(";", 1)[0].split("#", 1)[0].strip()
+    return values
+
+
+def update_ini_values(text: str, values: dict[str, str]) -> str:
+    pending = {key: str(value) for key, value in values.items()}
+    output: list[str] = []
+    seen: set[str] = set()
+    pattern = re.compile(r"^(\s*)([A-Za-z0-9_]+)(\s*=\s*)(.*?)(\s*(?:[;#].*)?)$")
+    for line in text.splitlines():
+        match = pattern.match(line)
+        if match and match.group(2) in pending:
+            key = match.group(2)
+            output.append(f"{match.group(1)}{key}{match.group(3)}{pending[key]}{match.group(5)}")
+            seen.add(key)
+        else:
+            output.append(line)
+    for key, value in pending.items():
+        if key not in seen:
+            output.append(f"{key}={value}")
+    return "\n".join(output) + ("\n" if text.endswith("\n") else "")
+
+
+class Job:
+    def __init__(self, label: str):
+        self.id = uuid.uuid4().hex
+        self.label = label
+        self.status = "queued"
+        self.created_at = datetime.utcnow().isoformat() + "Z"
+        self.updated_at = self.created_at
+        self.exit_code: int | None = None
+        self.error: str | None = None
+        self.logs: list[str] = []
+        self.events: queue.Queue[str] = queue.Queue()
+        self.cancel_requested = False
+        self.lock = threading.RLock()
+
+    def log(self, message: str) -> None:
+        text = str(message)
+        with self.lock:
+            self.logs.append(text)
+            self.updated_at = datetime.utcnow().isoformat() + "Z"
+        self.events.put(text)
+
+    def set_status(self, status: str, error: str | None = None, exit_code: int | None = None) -> None:
+        with self.lock:
+            self.status = status
+            self.error = error
+            self.exit_code = exit_code
+            self.updated_at = datetime.utcnow().isoformat() + "Z"
+        self.events.put(f"__status__:{status}")
+
+    def snapshot(self) -> dict[str, Any]:
+        with self.lock:
+            return {
+                "id": self.id,
+                "label": self.label,
+                "status": self.status,
+                "created_at": self.created_at,
+                "updated_at": self.updated_at,
+                "exit_code": self.exit_code,
+                "error": self.error,
+                "logs": self.logs[-500:],
+            }
+
+
+jobs: dict[str, Job] = {}
+jobs_lock = threading.RLock()
+
+
+def start_job(label: str, fn: Callable[[Job], Any]) -> Job:
+    job = Job(label)
+    with jobs_lock:
+        jobs[job.id] = job
+
+    def runner() -> None:
+        job.set_status("running")
+        try:
+            fn(job)
+            if job.status != "cancelled":
+                job.set_status("succeeded", exit_code=0)
+        except Exception as exc:
+            job.log(f"Error: {exc}")
+            job.set_status("failed", error=str(exc), exit_code=1)
+
+    threading.Thread(target=runner, daemon=True).start()
+    return job
+
+
+def run_local_stream(command: list[str], job: Job, cwd: Path | None = None) -> None:
+    proc = subprocess.Popen(
+        command,
+        cwd=str(cwd) if cwd else None,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+    assert proc.stdout is not None
+    for line in proc.stdout:
+        if job.cancel_requested:
+            proc.terminate()
+            job.set_status("cancelled")
+            return
+        job.log(line.rstrip("\n"))
+    code = proc.wait()
+    if code != 0:
+        raise RuntimeError(f"Command exited with {code}")
+
+
+class ConnectRequest(BaseModel):
+    host: str
+    username: str = "root"
+    password: str = ""
+    use_ssh_agent: bool = False
+    look_for_ssh_keys: bool = False
+
+
+class DeviceProfile(BaseModel):
+    name: str
+    host: str
+    username: str = "root"
+    password: str = ""
+
+
+class ProfileRequest(BaseModel):
+    name: str
+    host: str
+    username: str = "root"
+    password: str = ""
+    use_ssh_agent: bool = False
+    look_for_ssh_keys: bool = False
+
+
+class ActiveProfileRequest(BaseModel):
+    id: str
+
+
+class ModeRequest(BaseModel):
+    mode: str = Field(pattern="^(online|offline)$")
+    offline_sd_root: str = ""
+
+
+class TextWriteRequest(BaseModel):
+    path: str
+    text: str
+
+
+class IniSettingsWriteRequest(BaseModel):
+    path: str = "MiSTer.ini"
+    values: dict[str, str]
+
+
+class SmbRequest(BaseModel):
+    enabled: bool
+
+
+class ScriptRunRequest(BaseModel):
+    key: str
+
+
+class RemoteCommandRequest(BaseModel):
+    command: str
+
+
+class FlashWriteRequest(BaseModel):
+    device: str
+    image_path: str
+
+
+class DownloadRequest(BaseModel):
+    source: str = Field(pattern="^(mr-fusion|superstation)$")
+
+
+@app.get("/api/health")
+def health() -> dict[str, Any]:
+    return {
+        "ok": not IMPORT_ERROR,
+        "app": APP_NAME,
+        "upstream_version": APP_VERSION,
+        "import_error": IMPORT_ERROR,
+        "state_dir": str(STATE_DIR),
+        "config_dir": str(CONFIG_DIR),
+        "data_dir": str(DATA_DIR),
+        "upstream_dir": str(UPSTREAM_DIR),
+        "connected": is_connected(),
+        "mode": runtime_state.get("mode"),
+        "offline_sd_root": runtime_state.get("offline_sd_root"),
+        "active_profile_id": runtime_state.get("active_profile_id", ""),
+    }
+
+
+@app.get("/api/tabs")
+def tabs() -> list[dict[str, Any]]:
+    names = [
+        "Flash SD",
+        "Connection",
+        "Device",
+        "MiSTer Settings",
+        "Scripts",
+        "ZapScripts",
+        "SaveManager",
+        "Wallpapers",
+        "Extras",
+        "RetroAchievements",
+        "Manuals",
+    ]
+    return [{"name": name, "enabled": True} for name in names]
+
+
+@app.get("/api/state")
+def get_state() -> dict[str, Any]:
+    public_state = {
+        key: value
+        for key, value in runtime_state.items()
+        if key != "ra"
+    }
+    public_state["ra"] = ra_config()
+    public_state["connected"] = is_connected()
+    public_state["active_profile_id"] = runtime_state.get("active_profile_id", "")
+    return public_state
+
+
+@app.post("/api/state/mode")
+def set_mode(req: ModeRequest) -> dict[str, Any]:
+    runtime_state["mode"] = req.mode
+    runtime_state["offline_sd_root"] = req.offline_sd_root
+    save_state(runtime_state)
+    return get_state()
+
+
+@app.get("/api/profiles")
+def list_profiles() -> dict[str, Any]:
+    return {
+        "active_profile_id": runtime_state.get("active_profile_id", ""),
+        "profiles": public_profiles(),
+    }
+
+
+@app.post("/api/profiles")
+def create_profile(profile: ProfileRequest) -> dict[str, Any]:
+    profiles = load_profiles_private()
+    data = profile.model_dump()
+    data["id"] = _profile_id()
+    profiles.append(data)
+    save_profiles_private(profiles)
+    if not runtime_state.get("active_profile_id"):
+        runtime_state["active_profile_id"] = data["id"]
+        save_state(runtime_state)
+    return list_profiles()
+
+
+@app.get("/api/profiles/active")
+def get_active_profile() -> dict[str, Any]:
+    active_id = str(runtime_state.get("active_profile_id") or "")
+    if not active_id:
+        profiles = load_profiles_private()
+        if profiles:
+            active_id = str(profiles[0].get("id"))
+            runtime_state["active_profile_id"] = active_id
+            save_state(runtime_state)
+    profile = find_profile_private(active_id) if active_id else {}
+    return {"active_profile_id": active_id, "profile": _redact_profile(profile) if profile else None}
+
+
+@app.put("/api/profiles/active")
+def set_active_profile(req: ActiveProfileRequest) -> dict[str, Any]:
+    find_profile_private(req.id)
+    runtime_state["active_profile_id"] = req.id
+    save_state(runtime_state)
+    return get_active_profile()
+
+
+@app.put("/api/profiles/{profile_id}")
+def update_profile(profile_id: str, profile: ProfileRequest) -> dict[str, Any]:
+    profiles = load_profiles_private()
+    for index, item in enumerate(profiles):
+        if str(item.get("id")) == profile_id:
+            data = profile.model_dump()
+            data["id"] = profile_id
+            profiles[index] = data
+            save_profiles_private(profiles)
+            return list_profiles()
+    raise HTTPException(status_code=404, detail="Profile not found")
+
+
+@app.delete("/api/profiles/{profile_id}")
+def delete_profile(profile_id: str) -> dict[str, Any]:
+    profiles = [profile for profile in load_profiles_private() if str(profile.get("id")) != profile_id]
+    if len(profiles) == len(load_profiles_private()):
+        raise HTTPException(status_code=404, detail="Profile not found")
+    save_profiles_private(profiles)
+    if runtime_state.get("active_profile_id") == profile_id:
+        runtime_state["active_profile_id"] = profiles[0].get("id", "") if profiles else ""
+        save_state(runtime_state)
+    return list_profiles()
+
+
+@app.post("/api/profiles/{profile_id}/connect")
+def connect_profile(profile_id: str) -> dict[str, Any]:
+    profile = find_profile_private(profile_id)
+    runtime_state["active_profile_id"] = profile_id
+    return connect(
+        ConnectRequest(
+            host=profile.get("host") or profile.get("ip") or "",
+            username=profile.get("username") or "root",
+            password=profile.get("password") or "",
+            use_ssh_agent=bool(profile.get("use_ssh_agent")),
+            look_for_ssh_keys=bool(profile.get("look_for_ssh_keys")),
+        )
+    )
+
+
+@app.get("/api/devices")
+def list_devices() -> list[dict[str, Any]]:
+    if IMPORT_ERROR:
+        return public_profiles()
+    return list(get_devices(app_config()))
+
+
+@app.post("/api/devices")
+def create_device(profile: DeviceProfile) -> list[dict[str, Any]]:
+    data = profile.model_dump()
+    data.setdefault("ip", data.get("host", ""))
+    ok, message = add_device(app_config(), data)
+    if not ok:
+        raise HTTPException(status_code=409, detail=message)
+    return list_devices()
+
+
+@app.put("/api/devices/{index}")
+def put_device(index: int, profile: DeviceProfile) -> list[dict[str, Any]]:
+    data = profile.model_dump()
+    data.setdefault("ip", data.get("host", ""))
+    ok, message, _ = update_device(app_config(), index, data)
+    if not ok:
+        raise HTTPException(status_code=409, detail=message)
+    return list_devices()
+
+
+@app.delete("/api/devices/{index}")
+def remove_device(index: int) -> list[dict[str, Any]]:
+    ok, message, _ = delete_device(app_config(), index)
+    if not ok:
+        raise HTTPException(status_code=409, detail=message)
+    return list_devices()
+
+
+@app.get("/api/devices/{index}")
+def get_device(index: int) -> dict[str, Any]:
+    device = get_device_by_index(app_config(), index)
+    if not device:
+        raise HTTPException(status_code=404, detail="Device profile not found")
+    return dict(device)
+
+
+@app.post("/api/connect")
+def connect(req: ConnectRequest) -> dict[str, Any]:
+    if not connection:
+        raise HTTPException(status_code=500, detail=IMPORT_ERROR or "Connection core unavailable")
+    ok = connection.connect(
+        req.host,
+        req.username,
+        req.password,
+        use_ssh_agent=req.use_ssh_agent,
+        look_for_ssh_keys=req.look_for_ssh_keys,
+    )
+    if not ok:
+        raise HTTPException(status_code=401, detail="Unable to connect over SSH")
+    runtime_state["mode"] = "online"
+    if not runtime_state.get("active_profile_id"):
+        for profile in load_profiles_private():
+            if (profile.get("host") or profile.get("ip")) == req.host:
+                runtime_state["active_profile_id"] = profile.get("id", "")
+                break
+    save_state(runtime_state)
+    return get_state()
+
+
+@app.post("/api/disconnect")
+def disconnect() -> dict[str, Any]:
+    if connection:
+        connection.disconnect()
+    return get_state()
+
+
+@app.get("/api/network/scan")
+def scan_network(prefix: str = "192.168.2", start: int = 1, end: int = 254) -> list[dict[str, Any]]:
+    start = max(1, min(start, 254))
+    end = max(start, min(end, 254))
+
+    def probe(host: str) -> dict[str, Any] | None:
+        try:
+            with socket.create_connection((host, 22), timeout=0.25):
+                pass
+            return {"host": host, "ssh": True}
+        except Exception:
+            return None
+
+    results: list[dict[str, Any]] = []
+    with ThreadPoolExecutor(max_workers=64) as pool:
+        futures = [pool.submit(probe, f"{prefix}.{i}") for i in range(start, end + 1)]
+        for fut in as_completed(futures):
+            item = fut.result()
+            if item:
+                results.append(item)
+    return sorted(results, key=lambda x: tuple(int(p) for p in x["host"].split(".")))
+
+
+@app.get("/api/device/info")
+def device_info() -> dict[str, Any]:
+    if is_offline():
+        root = require_sd_root()
+        return {
+            "mode": "offline",
+            "sd": get_sd_storage_info_offline(str(root)),
+            "usb": {"present": False, "label": "USB storage is only checked in online mode"},
+            "smb_enabled": is_smb_enabled_offline(str(root)),
+        }
+    conn = require_connected()
+    return {
+        "mode": "online",
+        "sd": get_sd_storage_info(conn),
+        "usb": get_usb_storage_info(conn),
+        "smb_enabled": is_smb_enabled(conn),
+    }
+
+
+@app.post("/api/device/smb")
+def set_smb(req: SmbRequest) -> dict[str, Any]:
+    if is_offline():
+        root = require_sd_root()
+        enable_smb_offline(str(root)) if req.enabled else disable_smb_offline(str(root))
+    else:
+        conn = require_connected()
+        enable_smb_remote(conn) if req.enabled else disable_smb_remote(conn)
+    return device_info()
+
+
+@app.post("/api/device/reboot")
+def reboot() -> dict[str, Any]:
+    conn = require_connected()
+    conn.reboot()
+    return get_state()
+
+
+@app.post("/api/device/return-to-menu")
+def return_to_menu() -> dict[str, Any]:
+    conn = require_connected()
+    return {"output": return_to_menu_remote(conn)}
+
+
+@app.get("/api/ini")
+def list_ini() -> list[str]:
+    if is_offline():
+        root = require_sd_root()
+        names = ["MiSTer.ini"] + sorted(p.name for p in root.glob("MiSTer_*.ini"))
+        return [name for name in names if (root / name).exists()]
+    conn = require_connected()
+    out = conn.run_command("ls -1 /media/fat/MiSTer.ini /media/fat/MiSTer_*.ini 2>/dev/null | xargs -n1 basename")
+    return [line.strip() for line in out.splitlines() if line.strip()]
+
+
+@app.get("/api/ini/read")
+def read_ini(path: str = "MiSTer.ini") -> dict[str, str]:
+    safe = PurePosixPath(path).name
+    if is_offline():
+        file_path = require_sd_root() / safe
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="INI file not found")
+        return {"path": safe, "text": file_path.read_text(encoding="utf-8", errors="ignore")}
+    remote = f"/media/fat/{safe}"
+    if not sftp_exists(remote):
+        raise HTTPException(status_code=404, detail="INI file not found")
+    return {"path": safe, "text": sftp_read_text(remote)}
+
+
+@app.post("/api/ini/write")
+def write_ini(req: TextWriteRequest) -> dict[str, str]:
+    safe = PurePosixPath(req.path).name
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    if is_offline():
+        file_path = require_sd_root() / safe
+        if file_path.exists():
+            backup = file_path.with_name(f"{safe}.{stamp}.bak")
+            shutil.copy2(file_path, backup)
+        file_path.write_text(req.text, encoding="utf-8")
+    else:
+        remote = f"/media/fat/{safe}"
+        if sftp_exists(remote):
+            conn = require_connected()
+            conn.run_command(f'cp "{remote}" "{remote}.{stamp}.bak"')
+        sftp_write_text(remote, req.text)
+    return {"path": safe, "status": "saved"}
+
+
+@app.get("/api/ini/schema")
+def ini_schema(path: str = "MiSTer.ini") -> dict[str, Any]:
+    ini = read_ini(path)
+    values = parse_ini_values(ini["text"])
+    settings = []
+    for item in INI_SETTINGS_SCHEMA:
+        setting = dict(item)
+        raw = values.get(setting["key"], "")
+        setting["value"] = raw
+        setting["enabled"] = raw not in {"", "0", "false", "False", "no", "No"} if setting["type"] == "checkbox" else raw
+        settings.append(setting)
+    return {"path": ini["path"], "settings": settings, "raw": ini["text"]}
+
+
+@app.post("/api/ini/settings")
+def write_ini_settings(req: IniSettingsWriteRequest) -> dict[str, Any]:
+    ini = read_ini(req.path)
+    allowed = {item["key"] for item in INI_SETTINGS_SCHEMA}
+    values = {key: value for key, value in req.values.items() if key in allowed}
+    if not values:
+        raise HTTPException(status_code=400, detail="No supported INI settings supplied")
+    text = update_ini_values(ini["text"], values)
+    write_ini(TextWriteRequest(path=req.path, text=text))
+    return ini_schema(req.path)
+
+
+@app.get("/api/scripts/status")
+def scripts_status() -> dict[str, Any]:
+    try:
+        import core.scripts_common as scripts_common
+
+        if is_offline():
+            for fn_name in ("get_scripts_status_offline", "detect_scripts_status_offline"):
+                fn = getattr(scripts_common, fn_name, None)
+                if fn:
+                    return vars(fn(str(require_sd_root())))
+        else:
+            for fn_name in ("get_scripts_status", "detect_scripts_status"):
+                fn = getattr(scripts_common, fn_name, None)
+                if fn:
+                    return vars(fn(require_connected()))
+        empty = getattr(scripts_common, "empty_scripts_status", None)
+        if empty:
+            return vars(empty())
+    except Exception as exc:
+        return {"error": str(exc)}
+    return {}
+
+
+SCRIPT_COMMANDS = {
+    "update_all": 'if [ -x /media/fat/Scripts/update_all.sh ]; then /media/fat/Scripts/update_all.sh; elif [ -x /media/fat/Scripts/update.sh ]; then /media/fat/Scripts/update.sh; else echo "update_all is not installed"; exit 1; fi',
+    "zaparoo": 'if [ -x /media/fat/Scripts/zaparoo.sh ]; then /media/fat/Scripts/zaparoo.sh; else echo "Zaparoo script is not installed"; exit 1; fi',
+    "auto_time": 'if [ -x /media/fat/Scripts/auto_time.sh ]; then /media/fat/Scripts/auto_time.sh; else echo "auto_time is not installed"; exit 1; fi',
+}
+
+
+@app.post("/api/scripts/run")
+def run_script(req: ScriptRunRequest) -> dict[str, Any]:
+    if req.key not in SCRIPT_COMMANDS:
+        raise HTTPException(status_code=404, detail="Unknown script key")
+    if is_offline():
+        raise HTTPException(status_code=409, detail="Offline script execution is exposed by status/config adapters only")
+    conn = require_connected()
+
+    def work(job: Job) -> None:
+        job.log(f"Running {req.key}...")
+        conn.run_command_stream(SCRIPT_COMMANDS[req.key], job.log)
+        if req.key == "update_all":
+            joined_logs = "\n".join(job.logs)
+            if "Update All failed!" in joined_logs or "There were some errors in the Updaters" in joined_logs:
+                raise RuntimeError("update_all reported updater errors. Check Scripts/.config/update_all/update_all.log on the MiSTer.")
+
+    return start_job(f"script:{req.key}", work).snapshot()
+
+
+@app.post("/api/zapscripts/send")
+def send_zap(req: RemoteCommandRequest) -> dict[str, Any]:
+    allowed = {
+        "menu": 'echo "load_core /media/fat/menu.rbf" > /dev/MiSTer_cmd',
+        "osd": 'echo "osd" > /dev/MiSTer_cmd',
+        "bluetooth": 'echo "bt" > /dev/MiSTer_cmd',
+        "wallpaper": 'echo "wallpaper" > /dev/MiSTer_cmd',
+    }
+    if req.command not in allowed:
+        raise HTTPException(status_code=404, detail="Unknown remote command")
+    conn = require_connected()
+    return {"output": conn.run_command(allowed[req.command])}
+
+
+def _download_dir_sftp(sftp: Any, remote_dir: str, local_dir: Path) -> None:
+    import stat
+
+    local_dir.mkdir(parents=True, exist_ok=True)
+    for item in sftp.listdir_attr(remote_dir):
+        remote_path = f"{remote_dir}/{item.filename}"
+        local_path = local_dir / item.filename
+        if stat.S_ISDIR(item.st_mode):
+            _download_dir_sftp(sftp, remote_path, local_path)
+        else:
+            sftp.get(remote_path, str(local_path))
+
+
+@app.get("/api/savemanager/backups")
+def list_save_backups() -> list[str]:
+    root = DATA_DIR / "SaveManager" / "backups"
+    root.mkdir(parents=True, exist_ok=True)
+    return sorted([p.name for p in root.iterdir() if p.is_dir()], reverse=True)
+
+
+@app.post("/api/savemanager/backup")
+def backup_saves(include_savestates: bool = True) -> dict[str, Any]:
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    dest = DATA_DIR / "SaveManager" / "backups" / stamp
+
+    def work(job: Job) -> None:
+        dest.mkdir(parents=True, exist_ok=True)
+        if is_offline():
+            root = require_sd_root()
+            for name in ["saves", "savestates"] if include_savestates else ["saves"]:
+                src = root / name
+                if src.exists():
+                    job.log(f"Copying {name}...")
+                    shutil.copytree(src, dest / name, dirs_exist_ok=True)
+            return
+        conn = require_connected()
+        sftp = conn.client.open_sftp()
+        try:
+            for remote, name in [("/media/fat/saves", "saves"), ("/media/fat/savestates", "savestates")]:
+                if name == "savestates" and not include_savestates:
+                    continue
+                job.log(f"Downloading {name}...")
+                try:
+                    _download_dir_sftp(sftp, remote, dest / name)
+                except FileNotFoundError:
+                    job.log(f"{remote} does not exist")
+        finally:
+            sftp.close()
+
+    return start_job("savemanager:backup", work).snapshot()
+
+
+@app.get("/api/wallpapers/status")
+def wallpapers_status() -> dict[str, Any]:
+    if is_offline():
+        root = require_sd_root()
+        folder = root / "wallpapers"
+        return {"count": len(list(folder.glob("*"))) if folder.exists() else 0, "path": str(folder)}
+    conn = require_connected()
+    out = conn.run_command("find /media/fat/wallpapers -maxdepth 1 -type f 2>/dev/null | wc -l")
+    return {"count": int((out or "0").strip() or "0"), "path": "/media/fat/wallpapers"}
+
+
+@app.get("/api/extras/status")
+def extras_status() -> dict[str, Any]:
+    checks = {
+        "zaparoo_launcher": "/media/fat/Scripts/zaparoo.sh",
+        "ra_cores": "/media/fat/Scripts/.config/ra_cores",
+        "sonic_mania": "/media/fat/games/Sonic_MiSTer",
+        "three_s_arm": "/media/fat/games/3S",
+    }
+    if is_offline():
+        root = require_sd_root()
+        return {name: remote_to_local(root, path).exists() for name, path in checks.items()}
+    conn = require_connected()
+    return {
+        name: "YES" in conn.run_command(f'test -e "{path}" && echo YES || echo NO')
+        for name, path in checks.items()
+    }
+
+
+@app.get("/api/retroachievements/config")
+def ra_config() -> dict[str, Any]:
+    data = dict(runtime_state.get("ra") or {})
+    return {
+        "username": data.get("username", ""),
+        "has_password": bool(data.get("password")),
+        "has_api_key": bool(data.get("api_key")),
+    }
+
+
+@app.post("/api/retroachievements/config")
+def set_ra_config(data: dict[str, Any]) -> dict[str, Any]:
+    current = dict(runtime_state.get("ra") or {})
+    for key in {"username", "password", "api_key"}:
+        if key in data:
+            current[key] = data.get(key) or ""
+    runtime_state["ra"] = current
+    save_state(runtime_state)
+    return ra_config()
+
+
+@app.get("/api/retroachievements/summary")
+def ra_summary() -> dict[str, Any]:
+    data = dict(runtime_state.get("ra") or {})
+    username = data.get("username", "")
+    api_key = data.get("api_key", "")
+
+    if not username or not api_key:
+        return {
+            "configured": bool(username),
+            "available": False,
+            "reason": "RetroAchievements Web API key is required for the viewer API.",
+        }
+
+    try:
+        from core.retroachievements_api import (
+            flatten_recent_achievements,
+            get_user_summary,
+            normalize_recent_games,
+        )
+
+        summary = get_user_summary(username, api_key)
+        return {
+            "configured": True,
+            "available": True,
+            "summary": summary,
+            "recent_games": normalize_recent_games(summary),
+            "recent_achievements": flatten_recent_achievements(summary),
+        }
+    except Exception as exc:
+        return {"configured": True, "available": False, "reason": str(exc)}
+
+
+@app.get("/api/manuals")
+def manuals() -> dict[str, Any]:
+    return {
+        "available": True,
+        "database_path": str(DATA_DIR / "cache" / "manuals"),
+        "note": "Manual database hooks are ready for the upstream manuals core.",
+    }
+
+
+def flash_headers() -> dict[str, str]:
+    token = FLASH_HELPER_TOKEN_FILE.read_text(encoding="utf-8").strip() if FLASH_HELPER_TOKEN_FILE.exists() else ""
+    return {"Authorization": f"Bearer {token}"} if token else {}
+
+
+@app.get("/api/flash/devices")
+def flash_devices() -> list[dict[str, Any]]:
+    try:
+        resp = requests.get(f"{FLASH_HELPER_URL}/devices", headers=flash_headers(), timeout=5)
+        resp.raise_for_status()
+        return list(resp.json().get("devices", []))
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Flash helper unavailable: {exc}") from exc
+
+
+@app.get("/api/flash/releases")
+def flash_releases() -> dict[str, Any]:
+    repos = {
+        "mr-fusion": "MiSTer-devel/mr-fusion",
+        "superstation": "Retro-Remake/SuperStation-SD-Card-Installer",
+    }
+    result: dict[str, Any] = {}
+    for key, repo in repos.items():
+        try:
+            r = requests.get(f"https://api.github.com/repos/{repo}/releases/latest", timeout=10)
+            r.raise_for_status()
+            data = r.json()
+            result[key] = {
+                "tag": data.get("tag_name"),
+                "name": data.get("name"),
+                "assets": [
+                    {"name": a.get("name"), "url": a.get("browser_download_url"), "size": a.get("size")}
+                    for a in data.get("assets", [])
+                ],
+            }
+        except Exception as exc:
+            result[key] = {"error": str(exc)}
+    return result
+
+
+@app.post("/api/flash/download")
+def flash_download(req: DownloadRequest) -> dict[str, Any]:
+    def work(job: Job) -> None:
+        releases = flash_releases()
+        info = releases.get(req.source, {})
+        assets = info.get("assets") or []
+        asset = next((a for a in assets if str(a.get("name", "")).lower().endswith((".img.zip", ".zip", ".xz", ".img"))), None)
+        if not asset:
+            raise RuntimeError(f"No downloadable image asset found for {req.source}")
+        url = asset["url"]
+        dest = DATA_DIR / "downloads" / asset["name"]
+        job.log(f"Downloading {asset['name']}...")
+        with requests.get(url, stream=True, timeout=30) as r:
+            r.raise_for_status()
+            with dest.open("wb") as fh:
+                for chunk in r.iter_content(chunk_size=1024 * 1024):
+                    if job.cancel_requested:
+                        job.set_status("cancelled")
+                        return
+                    if chunk:
+                        fh.write(chunk)
+        job.log(f"Saved to {dest}")
+
+    return start_job(f"flash:download:{req.source}", work).snapshot()
+
+
+@app.post("/api/flash/write")
+def flash_write(req: FlashWriteRequest) -> dict[str, Any]:
+    image = Path(req.image_path)
+    if not image.exists() or DATA_DIR not in image.resolve().parents:
+        raise HTTPException(status_code=400, detail="Image must exist under the app data directory")
+
+    def work(job: Job) -> None:
+        payload = {
+            "device": req.device,
+            "image_path": str(image.resolve()).replace(str(DATA_DIR), FLASH_HELPER_DATA_PREFIX, 1),
+        }
+        job.log(f"Requesting host flash helper for {req.device}")
+        resp = requests.post(f"{FLASH_HELPER_URL}/flash", headers=flash_headers(), json=payload, timeout=10)
+        resp.raise_for_status()
+        job.log(json.dumps(resp.json()))
+
+    return start_job("flash:write", work).snapshot()
+
+
+@app.get("/api/jobs")
+def list_jobs() -> list[dict[str, Any]]:
+    with jobs_lock:
+        return [job.snapshot() for job in jobs.values()]
+
+
+@app.get("/api/jobs/{job_id}")
+def get_job(job_id: str) -> dict[str, Any]:
+    job = jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job.snapshot()
+
+
+@app.post("/api/jobs/{job_id}/cancel")
+def cancel_job(job_id: str) -> dict[str, Any]:
+    job = jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    job.cancel_requested = True
+    job.log("Cancel requested")
+    return job.snapshot()
+
+
+@app.websocket("/ws/jobs/{job_id}")
+async def job_ws(websocket: WebSocket, job_id: str) -> None:
+    await websocket.accept()
+    job = jobs.get(job_id)
+    if not job:
+        await websocket.send_json({"type": "error", "message": "Job not found"})
+        await websocket.close()
+        return
+    await websocket.send_json({"type": "snapshot", "job": job.snapshot()})
+    try:
+        while True:
+            try:
+                item = await asyncio.to_thread(job.events.get, True, 1)
+                await websocket.send_json({"type": "log", "message": item, "job": job.snapshot()})
+            except queue.Empty:
+                await websocket.send_json({"type": "ping", "job": job.snapshot()})
+            if job.status in {"succeeded", "failed", "cancelled"} and job.events.empty():
+                await websocket.send_json({"type": "done", "job": job.snapshot()})
+                break
+    except WebSocketDisconnect:
+        return
+
+
+if FRONTEND_DIST.exists():
+    app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIST / "assets")), name="assets")
+
+if (UPSTREAM_DIR / "assets").exists():
+    app.mount("/mc-assets", StaticFiles(directory=str(UPSTREAM_DIR / "assets")), name="mc-assets")
+
+if (UPSTREAM_DIR.parent / "assets").exists():
+    app.mount("/repo-assets", StaticFiles(directory=str(UPSTREAM_DIR.parent / "assets")), name="repo-assets")
+
+
+@app.get("/{path:path}")
+def frontend(path: str) -> FileResponse:
+    if path.startswith("api/") or path.startswith("ws/"):
+        raise HTTPException(status_code=404)
+    index = FRONTEND_DIST / "index.html"
+    if not index.exists():
+        raise HTTPException(status_code=503, detail="Frontend has not been built")
+    return FileResponse(index)
