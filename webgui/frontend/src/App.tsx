@@ -63,11 +63,22 @@ type Setting = {
   key: string;
   label: string;
   type: "select" | "checkbox" | "text";
+  category?: string;
   value: string;
   enabled?: boolean;
   options?: { value: string; label: string }[];
-  what: string;
-  who: string;
+  description?: string;
+  what?: string;
+  who?: string;
+};
+
+type ScriptOption = {
+  key: string;
+  label: string;
+  category: string;
+  description: string;
+  type?: "boolean" | "select";
+  options?: string[];
 };
 
 const tabs = [
@@ -89,6 +100,15 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
     headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
     ...init,
   });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || response.statusText);
+  }
+  return response.json() as Promise<T>;
+}
+
+async function apiForm<T>(path: string, body: FormData): Promise<T> {
+  const response = await fetch(path, { method: "POST", body });
   if (!response.ok) {
     const text = await response.text();
     throw new Error(text || response.statusText);
@@ -134,13 +154,8 @@ function AdvancedPanel({ data, label = "Advanced" }: { data: unknown; label?: st
   );
 }
 
-function HelpText({ what, who }: { what: string; who: string }) {
-  return (
-    <p className="help">
-      <strong>Wat doet dit?</strong> {what}<br />
-      <strong>Voor wie?</strong> {who}
-    </p>
-  );
+function HelpText({ description }: { description: string }) {
+  return <p className="help">{description}</p>;
 }
 
 function SettingRow({ setting, value, onChange }: { setting: Setting; value: string; onChange: (value: string) => void }) {
@@ -148,7 +163,7 @@ function SettingRow({ setting, value, onChange }: { setting: Setting; value: str
     <div className="setting-row">
       <div>
         <h3>{setting.label}</h3>
-        <HelpText what={setting.what} who={setting.who} />
+        <HelpText description={setting.description || [setting.what, setting.who].filter(Boolean).join(" ")} />
       </div>
       {setting.type === "checkbox" ? (
         <label className="switch">
@@ -184,7 +199,7 @@ function ConfirmAction({
     <button
       className={danger ? "danger" : ""}
       onClick={() => {
-        if (!danger || window.confirm("Weet je zeker dat je deze actie wilt uitvoeren?")) {
+        if (!danger || window.confirm("Are you sure you want to run this action?")) {
           Promise.resolve(onConfirm()).catch((err) => window.alert(String(err)));
         }
       }}
@@ -195,7 +210,7 @@ function ConfirmAction({
 }
 
 function JobLogPanel({ job }: { job: Job | null }) {
-  if (!job) return <div className="log empty">Geen job geselecteerd</div>;
+  if (!job) return <div className="log empty">No running job selected</div>;
   return (
     <div className="log">
       <div className="log-head">
@@ -218,7 +233,7 @@ function ProfileSelector({
 }) {
   return (
     <select value={value} onChange={(event) => onChange(event.target.value)}>
-      <option value="">Selecteer MiSTer</option>
+      <option value="">Select a MiSTer</option>
       {profiles.map((profile) => (
         <option key={profile.id} value={profile.id}>{profile.name} ({profile.host})</option>
       ))}
@@ -339,7 +354,7 @@ function DeviceTab() {
       </section>
       <section>
         <h2>Device Actions</h2>
-        <HelpText what="Deze acties sturen direct commando's naar de actieve MiSTer." who="Voor onderhoud, snelle reboot of terugkeren naar het MiSTer menu." />
+        <HelpText description="These controls send commands directly to the active MiSTer profile. Use them for maintenance tasks such as toggling SMB, returning to the menu core, or rebooting after updates." />
         <div className="actions">
           <button onClick={() => api("/api/device/smb", { method: "POST", body: JSON.stringify({ enabled: !info?.smb_enabled }) }).then(refresh)}>
             <Upload size={16} />SMB {info?.smb_enabled ? "Off" : "On"}
@@ -377,8 +392,13 @@ function SettingsTab() {
         <span>{message}</span>
       </div>
       <div className="settings-list">
-        {settings.map((setting) => (
-          <SettingRow key={setting.key} setting={setting} value={values[setting.key] ?? ""} onChange={(value) => setValues({ ...values, [setting.key]: value })} />
+        {Array.from(new Set(settings.map((setting) => setting.category || "General"))).map((category) => (
+          <div className="settings-category" key={category}>
+            <h2>{category}</h2>
+            {settings.filter((setting) => (setting.category || "General") === category).map((setting) => (
+              <SettingRow key={setting.key} setting={setting} value={values[setting.key] ?? ""} onChange={(value) => setValues({ ...values, [setting.key]: value })} />
+            ))}
+          </div>
         ))}
       </div>
       <AdvancedPanel data={raw} label="Advanced raw INI" />
@@ -386,32 +406,92 @@ function SettingsTab() {
   );
 }
 
-function ScriptsTab({ setJob }: { setJob: (job: Job) => void }) {
+const scriptOptions: ScriptOption[] = [
+  { key: "main_cores", label: "Official MiSTer cores", category: "Core sources", description: "Keeps the standard MiSTer-devel cores up to date. Most users should keep this enabled." },
+  { key: "jtcores", label: "Jotego arcade cores", category: "Core sources", description: "Downloads Jotego arcade cores and related files. Enable this if you play Jotego arcade releases." },
+  { key: "jt_beta", label: "Jotego beta cores", category: "Core sources", description: "Allows beta Jotego cores in update_all. Use this when you support Jotego and want early access builds." },
+  { key: "coinop", label: "Coin-Op Collection", category: "Core sources", description: "Adds Coin-Op Collection arcade content. Useful for arcade-focused installations." },
+  { key: "unofficial", label: "Unofficial cores", category: "Core sources", description: "Adds the community unofficial MiSTer distribution. Enable it if you deliberately want experimental or non-mainline cores." },
+  { key: "mister_frontier", label: "MiSTer Frontier", category: "Core sources", description: "Adds MiSTer Frontier cores such as PICO-8 and OpenBOR. Pick this when you want those newer platform-style cores managed by update_all." },
+  { key: "arcade_roms", label: "Arcade ROM database", category: "Games and BIOS", description: "Lets update_all download required arcade ROM files from the configured arcade database sources." },
+  { key: "bios", label: "BIOS database", category: "Games and BIOS", description: "Downloads BIOS files used by supported cores. This is helpful on fresh setups, but review local legal requirements." },
+  { key: "bootroms", label: "Boot ROM launchers", category: "Games and BIOS", description: "Adds MGL launchers for boot ROM based systems. Use it if you want cleaner launching for ROM-oriented cores." },
+  { key: "gbaborders", label: "GBA borders", category: "Games and BIOS", description: "Adds Game Boy Advance border artwork. Enable this if you use handheld cores and want curated borders." },
+  { key: "insert_coin", label: "Insert Coin assets", category: "Games and BIOS", description: "Adds Insert Coin artwork and related arcade polish for supported setups." },
+  { key: "arcade_org", label: "Arcade Organizer", category: "Organization", description: "Organizes arcade files into friendlier names and folders. Enable it if you want curated arcade browsing rather than raw core filenames." },
+  { key: "arcade_offset", label: "Arcade offset folder", category: "Organization", description: "Adds alternate arcade folder organization data. Useful for cabinets or curated menu layouts." },
+  { key: "llapi", label: "LLAPI folder", category: "Hardware support", description: "Adds LLAPI support files. Enable only if you use LLAPI-compatible controllers or adapters." },
+  { key: "sam", label: "MiSTer SAM", category: "Hardware support", description: "Installs MiSTer SAM files for automatic/randomized game launching workflows." },
+  { key: "tty2oled", label: "TTY2OLED", category: "Hardware support", description: "Downloads files for TTY2OLED displays. Enable this for external OLED status displays connected to your MiSTer setup." },
+  { key: "i2c2oled", label: "I2C2OLED", category: "Hardware support", description: "Downloads files for I2C OLED display integrations. Only enable it when you use that hardware." },
+  { key: "retrospy", label: "RetroSpy", category: "Hardware support", description: "Adds RetroSpy support files for controller input visualization and streaming overlays." },
+  { key: "anime0t4ku_mister_scripts", label: "Anime0t4ku scripts", category: "Community scripts", description: "Adds the companion script database used by several convenience features in this app." },
+  { key: "anime0t4ku_wallpapers", label: "Anime0t4ku wallpapers", category: "Wallpapers", description: "Downloads the Anime0t4ku wallpaper collection through update_all." },
+  { key: "pcn_challenge_wallpapers", label: "PCN challenge wallpapers", category: "Wallpapers", description: "Adds the PCN challenge wallpaper pack. Enable this if you want that curated artwork set." },
+  { key: "pcn_premium_wallpapers", label: "PCN premium wallpapers", category: "Wallpapers", description: "Adds the PCN premium wallpaper pack. Use it only if that source is part of your setup." },
+  { key: "ranny_wallpapers", label: "Ranny-Snice wallpapers", category: "Wallpapers", description: "Adds the Ranny-Snice wallpaper repository. You can choose all wallpapers or filter by aspect ratio." },
+  { key: "manualsdb", label: "Manuals database", category: "Documentation", description: "Downloads game manuals database files so supported frontends can show manuals alongside games." },
+];
+
+function ScriptsTab({ setJob, job }: { setJob: (job: Job) => void; job: Job | null }) {
   const [status, setStatus] = useState<any>({});
+  const [config, setConfig] = useState<Record<string, any>>({});
+  const [configError, setConfigError] = useState("");
   const refresh = () => api<any>("/api/scripts/status").then(setStatus).catch((e) => setStatus({ error: String(e) }));
+  const loadConfig = () => api<{ available: boolean; values: Record<string, any>; error?: string }>("/api/scripts/config")
+    .then((data) => {
+      setConfig(data.values || {});
+      setConfigError(data.available ? "" : data.error || "update_all configuration is not available yet.");
+    })
+    .catch((e) => setConfigError(String(e)));
   const run = (key: string) => api<Job>("/api/scripts/run", { method: "POST", body: JSON.stringify({ key }) }).then(setJob);
-  useEffect(() => { refresh(); }, []);
+  const saveConfig = () => api<{ values: Record<string, any> }>("/api/scripts/config", { method: "POST", body: JSON.stringify({ values: config }) }).then((data) => setConfig(data.values || {}));
+  useEffect(() => { refresh(); loadConfig(); }, []);
   const scripts = [
-    ["update_all", "Update All", "Update cores, scripts and databases.", "Voor normaal MiSTer onderhoud."],
-    ["zaparoo", "Zaparoo", "Start of update Zaparoo script support.", "Voor NFC/cards en launcher workflows."],
-    ["auto_time", "Auto Time", "Synchroniseert tijd via script.", "Voor MiSTers zonder betrouwbare RTC."],
+    ["update_all", "Update All", "Updates cores, scripts, databases, BIOS packs, wallpapers, and optional community sources selected below."],
+    ["zaparoo", "Zaparoo", "Runs the Zaparoo helper script for NFC/card-driven launching workflows."],
+    ["auto_time", "Auto Time", "Runs the time synchronization helper for MiSTers without a reliable RTC."],
   ];
   return (
-    <div className="grid two">
+    <div className="grid two scripts-grid">
       <section>
         <h2>Scripts</h2>
         <div className="card-list">
-          {scripts.map(([key, label, what, who]) => (
+          {scripts.map(([key, label, description]) => (
             <div className="action-card" key={key}>
-              <div><h3>{label}</h3><HelpText what={what} who={who} /></div>
+              <div><h3>{label}</h3><HelpText description={description} /></div>
               <button onClick={() => run(key)}><Play size={16} />Run</button>
             </div>
           ))}
         </div>
+        <h2>Live Terminal</h2>
+        <p className="help">When you run a script, its output streams here so you can follow progress, warnings, download errors, and final success or failure without leaving the WebGUI.</p>
+        <JobLogPanel job={job} />
       </section>
       <section>
-        <h2>Status</h2>
-        <button onClick={refresh}><RefreshCw size={16} />Refresh</button>
+        <div className="toolbar">
+          <h2>update_all Options</h2>
+          <button onClick={() => { refresh(); loadConfig(); }}><RefreshCw size={16} />Refresh</button>
+          <button onClick={saveConfig}><Save size={16} />Save Options</button>
+        </div>
+        {configError && <p className="error">{configError}</p>}
+        <div className="settings-list compact">
+          {Array.from(new Set(scriptOptions.map((option) => option.category))).map((category) => (
+            <div className="settings-category" key={category}>
+              <h2>{category}</h2>
+              {scriptOptions.filter((option) => option.category === category).map((option) => (
+                <div className="setting-row" key={option.key}>
+                  <div><h3>{option.label}</h3><HelpText description={option.description} /></div>
+                  <label className="switch">
+                    <input type="checkbox" checked={Boolean(config[option.key])} onChange={(event) => setConfig({ ...config, [option.key]: event.target.checked })} />
+                    <span>{config[option.key] ? "Yes" : "No"}</span>
+                  </label>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+        <h2>Detected Script Status</h2>
         <div className="stat-grid">
           {Object.entries(status).filter(([, value]) => typeof value !== "object").map(([key, value]) => (
             <div key={key}><strong>{key}</strong><p>{String(value)}</p></div>
@@ -436,7 +516,7 @@ function FlashTab({ setJob }: { setJob: (job: Job) => void }) {
     <div className="grid two">
       <section>
         <h2>Flash SD</h2>
-        <HelpText what="Scant alleen removable USB/SD-devices via de Proxmox helper." who="Voor het veilig voorbereiden van een nieuwe MiSTer SD-kaart." />
+        <HelpText description="The removable-device scan is handled by the Proxmox flash helper, so the WebGUI only offers USB or SD devices that the helper has whitelisted. Use this flow when preparing a fresh MiSTer SD card." />
         <div className="actions">
           <button onClick={refresh}><RefreshCw size={16} />Devices</button>
           <button onClick={() => api<Job>("/api/flash/download", { method: "POST", body: JSON.stringify({ source: "mr-fusion" }) }).then(setJob)}><Download size={16} />Mr. Fusion</button>
@@ -475,7 +555,7 @@ function SaveManagerTab({ setJob }: { setJob: (job: Job) => void }) {
   return (
     <section className="full">
       <h2>SaveManager</h2>
-      <HelpText what="Maakt backups van saves en optioneel savestates naar de persistente data-map." who="Voor iedereen die saves wil beschermen voor updates of SD-werk." />
+      <HelpText description="SaveManager copies saves, and optionally savestates, into the persistent data volume. Use it before updates, SD card work, or experiments that might change your MiSTer storage." />
       <div className="actions">
         <button onClick={() => api<Job>("/api/savemanager/backup?include_savestates=true", { method: "POST" }).then(setJob).then(refresh)}><Save size={16} />Backup saves + states</button>
         <button onClick={() => api<Job>("/api/savemanager/backup?include_savestates=false", { method: "POST" }).then(setJob).then(refresh)}><Save size={16} />Backup saves only</button>
@@ -489,12 +569,46 @@ function SaveManagerTab({ setJob }: { setJob: (job: Job) => void }) {
 
 function WallpapersTab() {
   const [data, setData] = useState<any>({});
+  const [uploading, setUploading] = useState(false);
+  const [message, setMessage] = useState("");
   const refresh = () => api<any>("/api/wallpapers/status").then(setData).catch((e) => setData({ error: String(e) }));
   useEffect(() => { refresh(); }, []);
+  async function uploadFiles(files: FileList | File[]) {
+    setUploading(true);
+    setMessage("");
+    try {
+      for (const file of Array.from(files)) {
+        const body = new FormData();
+        body.append("file", file);
+        await apiForm("/api/wallpapers/upload", body);
+      }
+      setMessage("Upload complete");
+      await refresh();
+    } catch (err) {
+      setMessage(String(err));
+    } finally {
+      setUploading(false);
+    }
+  }
   return (
     <section className="full">
       <h2>Wallpapers</h2>
-      <HelpText what="Toont hoeveel wallpapers op de MiSTer of offline SD-map gevonden zijn." who="Voor wie snel wil controleren of wallpaper assets aanwezig zijn." />
+      <HelpText description="Drop JPG or PNG menu wallpapers here and the WebGUI uploads them to /media/fat/wallpapers on the active MiSTer profile. For a standard 16:9 menu setup, use 1920x1080 JPG files; 1280x720 also works, but 1080p gives the cleanest result on most HDMI displays." />
+      <div
+        className="dropzone"
+        onDragOver={(event) => event.preventDefault()}
+        onDrop={(event) => {
+          event.preventDefault();
+          uploadFiles(event.dataTransfer.files);
+        }}
+      >
+        <Image size={28} />
+        <strong>Drop wallpaper JPG/PNG files here</strong>
+        <span>Recommended: 1920x1080 JPG, sRGB, under 25 MB per file.</span>
+        <input type="file" accept=".jpg,.jpeg,.png,image/jpeg,image/png" multiple onChange={(event) => event.target.files && uploadFiles(event.target.files)} />
+      </div>
+      {message && <p className={message.includes("Error") ? "error" : "notice"}>{message}</p>}
+      {uploading && <p className="notice">Uploading...</p>}
       <div className="stat-grid">
         <div><strong>Count</strong><p>{data.count ?? "Unknown"}</p></div>
         <div><strong>Path</strong><p>{data.path || data.error || "Unknown"}</p></div>
@@ -505,24 +619,56 @@ function WallpapersTab() {
   );
 }
 
-function ExtrasTab() {
+function ExtrasTab({ setJob }: { setJob: (job: Job) => void }) {
   const [data, setData] = useState<Record<string, boolean>>({});
   const refresh = () => api<Record<string, boolean>>("/api/extras/status").then(setData).catch((e) => setData({ error: Boolean(String(e)) } as any));
   useEffect(() => { refresh(); }, []);
-  const labels: Record<string, string> = {
-    zaparoo_launcher: "Zaparoo Launcher",
-    ra_cores: "RetroAchievements cores",
-    sonic_mania: "Sonic Mania",
-    three_s_arm: "Street Fighter III 3S",
-  };
+  const extras = [
+    {
+      key: "zaparoo_launcher",
+      label: "Zaparoo Launcher",
+      guidance: "Installs the launcher files used by Zaparoo/NFC workflows. Nothing needs to be dragged in; the installer downloads the release files and places them on the MiSTer.",
+      steps: ["Connect to the MiSTer profile.", "Click Install or Update.", "Watch the terminal job until it finishes.", "Use the Zaparoo tab or NFC workflow after install."],
+    },
+    {
+      key: "ra_cores",
+      label: "RetroAchievements cores",
+      guidance: "Downloads and installs the RetroAchievements-enabled core set. This is a managed download/install flow, not a drag-and-drop ZIP upload.",
+      steps: ["Make sure RetroAchievements credentials are configured.", "Click Install or Update.", "Let the job download and place cores.", "Run update_all later if you also want databases refreshed."],
+    },
+    {
+      key: "sonic_mania",
+      label: "Sonic Mania",
+      guidance: "Installs the MiSTer Sonic Mania support files. Some game data may still need to be supplied by you depending on the upstream project requirements; the WebGUI installer explains progress in the job log.",
+      steps: ["Click Install or Update.", "Read the job log for required files or next steps.", "If the log asks for game data, copy the legally obtained files to the path it names.", "Refresh status after completion."],
+    },
+    {
+      key: "three_s_arm",
+      label: "Street Fighter III 3S ARM",
+      guidance: "Installs or updates the 3S-ARM launcher/core integration. The installer downloads the public release assets and updates MiSTer.ini where needed.",
+      steps: ["Click Install or Update.", "Watch the terminal job.", "If migration from legacy 3SX is detected, let the installer finish.", "Refresh status and launch from the MiSTer menu."],
+    },
+  ];
+  const runAction = (key: string, action: "install" | "uninstall") =>
+    api<Job>("/api/extras/action", { method: "POST", body: JSON.stringify({ key, action }) }).then(setJob).then(refresh);
   return (
     <section className="full">
       <h2>Extras</h2>
       <div className="card-list">
-        {Object.entries(data).map(([key, present]) => (
-          <div className="action-card" key={key}>
-            <div><h3>{labels[key] || key}</h3><HelpText what="Controleert of deze extra assets of scripts aanwezig zijn." who="Voor uitbreidingen buiten de standaard MiSTer installatie." /></div>
-            <StatusBadge ok={Boolean(present)} label={present ? "Installed" : "Missing"} />
+        {extras.map((extra) => (
+          <div className="extra-card" key={extra.key}>
+            <div>
+              <h3>{extra.label}</h3>
+              <HelpText description={extra.guidance} />
+              <ol>
+                {extra.steps.map((step) => <li key={step}>{step}</li>)}
+              </ol>
+            </div>
+            <div className="extra-actions">
+              <StatusBadge ok={Boolean(data[extra.key])} label={data[extra.key] ? "Installed" : "Not installed"} />
+              <button onClick={() => runAction(extra.key, "install")}><Download size={16} />Install or Update</button>
+              <ConfirmAction danger onConfirm={() => runAction(extra.key, "uninstall")}><Trash2 size={16} />Uninstall</ConfirmAction>
+            </div>
           </div>
         ))}
       </div>
@@ -550,7 +696,7 @@ function RetroAchievementsTab() {
           <div><strong>Password</strong><p>{config.has_password ? "Configured" : "Not stored"}</p></div>
           <div><strong>API key</strong><p>{config.has_api_key ? "Configured" : "Required"}</p></div>
         </div>
-        <HelpText what="Gebruikt RetroAchievements API data om profielinformatie te tonen." who="Voor spelers die achievement-status naast hun MiSTer setup willen zien." />
+        <HelpText description="RetroAchievements uses the configured account and API key to show your current profile summary and recent activity without exposing the stored secret values in the UI." />
       </section>
       <section>
         <h2>Viewer</h2>
@@ -568,18 +714,18 @@ function RetroAchievementsTab() {
 function ZapScripts() {
   const send = (command: string) => api("/api/zapscripts/send", { method: "POST", body: JSON.stringify({ command }) });
   const actions = [
-    ["menu", "Home", "Laadt het MiSTer menu.", "Voor snel terug naar de hoofdnavigatie."],
-    ["osd", "OSD", "Opent of triggert de on-screen display.", "Voor bediening zonder keyboard."],
-    ["bluetooth", "Bluetooth", "Start Bluetooth pairing/actie.", "Voor controllers en Bluetooth-accessoires."],
-    ["wallpaper", "Wallpaper", "Wisselt wallpaper via MiSTer command.", "Voor snelle visuele check."],
+    ["menu", "Home", "Loads the MiSTer menu core so you can return to the main navigation quickly."],
+    ["osd", "OSD", "Triggers the on-screen display, useful when you are operating the MiSTer without a keyboard nearby."],
+    ["bluetooth", "Bluetooth", "Starts the Bluetooth helper action for controller and accessory pairing workflows."],
+    ["wallpaper", "Wallpaper", "Asks MiSTer to refresh or rotate the menu wallpaper so you can verify artwork changes immediately."],
   ];
   return (
     <section>
       <h2>ZapScripts</h2>
       <div className="card-list">
-        {actions.map(([command, label, what, who]) => (
+        {actions.map(([command, label, description]) => (
           <div className="action-card" key={command}>
-            <div><h3>{label}</h3><HelpText what={what} who={who} /></div>
+            <div><h3>{label}</h3><HelpText description={description} /></div>
             <button onClick={() => send(command)}><Gamepad2 size={16} />Send</button>
           </div>
         ))}
@@ -594,7 +740,7 @@ function ManualsTab() {
   return (
     <section className="full">
       <h2>Manuals</h2>
-      <HelpText what="Bereidt de manual database/cache voor." who="Voor gebruikers die core- of game-handleidingen direct vanuit de WebGUI willen vinden." />
+      <HelpText description="The manuals area prepares the local cache used for manual lookups. It is meant for browsing core or game documentation directly from the WebGUI once the upstream manuals database is populated." />
       <div className="stat-grid">
         <div><strong>Status</strong><p>{data.available ? "Ready" : data.error || "Unavailable"}</p></div>
         <div><strong>Cache</strong><p>{data.database_path || "Unknown"}</p></div>
@@ -620,16 +766,16 @@ function App() {
     if (active === "Connection") return <ConnectionTab onRefresh={refresh} />;
     if (active === "Device") return <DeviceTab />;
     if (active === "MiSTer Settings") return <SettingsTab />;
-    if (active === "Scripts") return <ScriptsTab setJob={setJob} />;
+    if (active === "Scripts") return <ScriptsTab setJob={setJob} job={job} />;
     if (active === "Flash SD") return <FlashTab setJob={setJob} />;
     if (active === "ZapScripts") return <ZapScripts />;
     if (active === "SaveManager") return <SaveManagerTab setJob={setJob} />;
     if (active === "Wallpapers") return <WallpapersTab />;
-    if (active === "Extras") return <ExtrasTab />;
+    if (active === "Extras") return <ExtrasTab setJob={setJob} />;
     if (active === "RetroAchievements") return <RetroAchievementsTab />;
     if (active === "Manuals") return <ManualsTab />;
     return null;
-  }, [active]);
+  }, [active, job]);
 
   return (
     <main>

@@ -220,10 +220,24 @@ input, select, textarea {
   overflow: auto;
   padding-right: 4px;
 }
+.settings-list.compact {
+  max-height: 52vh;
+}
+.settings-category {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.settings-category h2 {
+  margin: 4px 0 0;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #3f4753;
+}
 
 .setting-row,
 .action-card,
-.profile-card {
+.profile-card,
+.extra-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(160px, 240px);
   align-items: center;
@@ -237,6 +251,45 @@ input, select, textarea {
 .action-card,
 .profile-card {
   grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.extra-card {
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 230px);
+  align-items: start;
+}
+.extra-card ol {
+  margin: 9px 0 0 20px;
+  padding: 0;
+  color: #c1c8d2;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.extra-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.dropzone {
+  min-height: 150px;
+  border: 1px dashed #697485;
+  background: #1b2029;
+  border-radius: 6px;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 8px;
+  padding: 16px;
+  text-align: center;
+  color: #dbe1ea;
+}
+.dropzone span {
+  color: #aeb7c5;
+  font-size: 12px;
+}
+.dropzone input {
+  max-width: 280px;
+  background: transparent;
+  border: none;
 }
 
 .profile-card p,
@@ -277,6 +330,17 @@ input, select, textarea {
   color: #d7deea;
 }
 .notice { color: #aee8ba; }
+
+.scripts-grid .log {
+  min-height: 260px;
+  margin-top: 10px;
+  border: 1px solid #3f4753;
+  border-radius: 6px;
+  background: #11151c;
+}
+.scripts-grid .log pre {
+  max-height: 360px;
+}
 
 .job-dock {
   max-height: 230px;
@@ -354,6 +418,7 @@ input, select, textarea {
   .setting-row,
   .action-card,
   .profile-card,
+  .extra-card,
   .stat-grid {
     grid-template-columns: 1fr;
   }

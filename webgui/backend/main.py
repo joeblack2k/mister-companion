@@ -18,7 +18,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Callable
 
 import requests
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, File, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -261,83 +261,105 @@ def sftp_exists(remote_path: str) -> bool:
 INI_SETTINGS_SCHEMA: list[dict[str, Any]] = [
     {
         "key": "video_mode",
-        "label": "Video mode",
+        "label": "Primary video mode",
+        "category": "Video output",
         "type": "select",
         "options": [
-            {"value": "0", "label": "Auto / HDMI preferred"},
-            {"value": "8", "label": "1080p 60Hz"},
-            {"value": "6", "label": "720p 60Hz"},
-            {"value": "1", "label": "VGA 640x480"},
+            {"value": "", "label": "Auto-detect display"},
+            {"value": "0", "label": "1280x720 @ 60Hz"},
+            {"value": "7", "label": "1280x720 @ 50Hz"},
+            {"value": "8", "label": "1920x1080 @ 60Hz"},
+            {"value": "9", "label": "1920x1080 @ 50Hz"},
+            {"value": "14", "label": "2560x1440 @ 60Hz"},
+            {"value": "6", "label": "640x480 @ 60Hz"},
         ],
-        "what": "Kiest de HDMI/VGA outputmodus van de MiSTer.",
-        "who": "Voor iedereen die beeldresolutie of compatibiliteit met een TV/monitor wil afstemmen.",
+        "description": "Choose the base HDMI output resolution and refresh rate. Leave it on auto when your display negotiates correctly; set a fixed mode when a TV, capture card, scaler, or monitor needs a predictable signal.",
     },
     {
         "key": "vsync_adjust",
         "label": "VSync adjust",
+        "category": "Video output",
         "type": "select",
         "options": [
-            {"value": "0", "label": "Safe / compatible"},
-            {"value": "1", "label": "Low latency"},
-            {"value": "2", "label": "Lowest latency"},
+            {"value": "0", "label": "Off / most compatible"},
+            {"value": "1", "label": "Smooth original refresh"},
+            {"value": "2", "label": "Low latency single buffer"},
         ],
-        "what": "Bepaalt hoeveel de output timing mag meebewegen met de core.",
-        "who": "Voor spelers die minder input lag willen of juist maximale TV-compatibiliteit zoeken.",
+        "description": "Allows MiSTer to bend the HDMI pixel clock so cores can run at their original refresh rate. Use 1 for smooth motion on tolerant displays, 2 when you want the lowest latency and your display can handle it.",
     },
+    {"key": "video_mode_ntsc", "label": "NTSC base video mode", "category": "Video output", "type": "text", "description": "Optional fallback mode used when VSync adjust switches to NTSC-like refresh rates. This is useful for picky displays that need separate 50Hz and 60Hz base timings."},
+    {"key": "video_mode_pal", "label": "PAL base video mode", "category": "Video output", "type": "text", "description": "Optional fallback mode used when VSync adjust switches to PAL-like refresh rates. Set this when 50Hz content needs a different stable HDMI mode than 60Hz content."},
+    {"key": "refresh_min", "label": "Minimum adaptive refresh", "category": "Video output", "type": "text", "description": "Prevents VSync adjust from going below a refresh rate your display cannot show. Leave at 0 unless PAL/NTSC switching makes your screen drop out."},
+    {"key": "refresh_max", "label": "Maximum adaptive refresh", "category": "Video output", "type": "text", "description": "Prevents VSync adjust from going above a refresh rate your display cannot show. This helps monitors or capture devices that dislike unusual arcade refresh rates."},
     {
         "key": "vscale_mode",
         "label": "Vertical scale",
+        "category": "Scaling and picture",
         "type": "select",
         "options": [
             {"value": "0", "label": "Fit screen"},
-            {"value": "1", "label": "Integer-ish scale"},
-            {"value": "2", "label": "Integer scale"},
+            {"value": "1", "label": "Integer scale only"},
+            {"value": "2", "label": "Half-step scaling"},
+            {"value": "3", "label": "Quarter-step scaling"},
+            {"value": "4", "label": "Integer using core aspect"},
+            {"value": "5", "label": "Integer using display aspect"},
         ],
-        "what": "Regelt hoe MiSTer verticale pixels schaalt.",
-        "who": "Voor wie scherpe integer-scaling of juist een gevuld scherm wil.",
+        "description": "Controls how aggressively MiSTer scales each core vertically. Integer modes keep pixels sharp, while fit modes fill more of the screen.",
     },
-    {
-        "key": "hdmi_limited",
-        "label": "HDMI limited range",
-        "type": "checkbox",
-        "what": "Schakelt beperkt HDMI-kleurbereik in.",
-        "who": "Voor TV's die zwart/grijs verkeerd tonen met full-range RGB.",
-    },
-    {
-        "key": "direct_video",
-        "label": "Direct video",
-        "type": "checkbox",
-        "what": "Stuurt een analoog-vriendelijke videomodus via HDMI-adapters uit.",
-        "who": "Voor CRT/scaler setups met Direct Video adapters.",
-    },
-    {
-        "key": "ypbpr",
-        "label": "YPbPr component",
-        "type": "checkbox",
-        "what": "Gebruikt component-kleursignaal voor analoge output.",
-        "who": "Voor component/CRT setups in plaats van RGB.",
-    },
-    {
-        "key": "vga_scaler",
-        "label": "VGA scaler",
-        "type": "checkbox",
-        "what": "Laat de scaler ook actief zijn op VGA/IO-board output.",
-        "who": "Voor VGA-monitoren of scalers die een vaste resolutie verwachten.",
-    },
-    {
-        "key": "bootcore",
-        "label": "Boot core",
-        "type": "text",
-        "what": "Laadt automatisch een core bij het starten.",
-        "who": "Voor setups die direct in een favoriete core of menuvariant moeten starten.",
-    },
-    {
-        "key": "recents",
-        "label": "Recent menu",
-        "type": "checkbox",
-        "what": "Toont recent gebruikte cores/games in het menu.",
-        "who": "Voor wie vaak dezelfde games of cores start.",
-    },
+    {"key": "vscale_border", "label": "Vertical overscan border", "category": "Scaling and picture", "type": "text", "description": "Adds a top and bottom safety border for displays that crop the image. CRT-style TVs and some flat panels benefit from this when menu text is cut off."},
+    {"key": "video_info", "label": "Show video info overlay", "category": "Scaling and picture", "type": "text", "description": "Shows the current video mode for a few seconds after startup or mode changes. Handy while tuning a display, usually left at 0 once everything works."},
+    {"key": "video_brightness", "label": "Brightness", "category": "Scaling and picture", "type": "text", "description": "Adjusts HDMI brightness from the MiSTer side. Keep the default unless your display cannot be calibrated cleanly."},
+    {"key": "video_contrast", "label": "Contrast", "category": "Scaling and picture", "type": "text", "description": "Adjusts HDMI contrast before the signal reaches the display. Useful for capture setups or screens with limited picture controls."},
+    {"key": "video_saturation", "label": "Saturation", "category": "Scaling and picture", "type": "text", "description": "Controls color intensity. Lower values can tame oversaturated TVs; higher values are mostly for personal preference."},
+    {"key": "video_hue", "label": "Hue", "category": "Scaling and picture", "type": "text", "description": "Rotates HDMI color hue. Most users should leave this at 0 unless correcting a specific display or capture chain."},
+    {"key": "video_gain_offset", "label": "RGB gain and offset", "category": "Scaling and picture", "type": "text", "description": "Advanced RGB correction using gain and offset pairs. This is for careful display calibration, capture profiles, or special color workflows."},
+    {"key": "hdmi_limited", "label": "HDMI limited color range", "category": "HDMI and audio", "type": "select", "options": [{"value": "0", "label": "Full range RGB"}, {"value": "1", "label": "Limited 16-235"}, {"value": "2", "label": "Limited 16-255"}], "description": "Changes the HDMI color range. Use limited range when black levels look crushed or washed out on a TV; keep full range for monitors and most capture devices."},
+    {"key": "dvi_mode", "label": "DVI mode", "category": "HDMI and audio", "type": "checkbox", "description": "Disables HDMI audio and behaves like DVI. Use this only for older monitors or adapters that fail with normal HDMI negotiation."},
+    {"key": "hdmi_audio_96k", "label": "96 kHz HDMI audio", "category": "HDMI and audio", "type": "checkbox", "description": "Raises HDMI audio output to 96 kHz. Leave it off unless your audio chain expects 96 kHz and you have confirmed compatibility."},
+    {"key": "hdr", "label": "HDR mode", "category": "HDMI and audio", "type": "select", "options": [{"value": "0", "label": "Off"}, {"value": "1", "label": "HLG HDR"}, {"value": "2", "label": "DCI-P3 HDR"}], "description": "Enables HDR metadata on HDMI. This is mainly for modern HDR displays and needs picture tuning; SDR setups should keep it disabled."},
+    {"key": "hdr_max_nits", "label": "HDR peak brightness", "category": "HDMI and audio", "type": "text", "description": "Sets HDR peak brightness metadata. Match this to your display's real peak brightness to avoid clipped highlights."},
+    {"key": "hdr_avg_nits", "label": "HDR average brightness", "category": "HDMI and audio", "type": "text", "description": "Sets HDR average brightness metadata. A value around one quarter of peak brightness is a sane starting point."},
+    {"key": "direct_video", "label": "Direct Video over HDMI", "category": "Analog and CRT", "type": "select", "options": [{"value": "0", "label": "Off"}, {"value": "1", "label": "Direct Video"}, {"value": "2", "label": "Auto for HDMI DACs"}], "description": "Sends core-native timings through HDMI for DACs and CRT/scaler workflows. Do not enable this for normal TVs unless you are using a known Direct Video adapter."},
+    {"key": "vga_mode", "label": "VGA output mode", "category": "Analog and CRT", "type": "select", "options": [{"value": "rgb", "label": "RGB"}, {"value": "ypbpr", "label": "YPbPr component"}, {"value": "svideo", "label": "S-Video"}, {"value": "cvbs", "label": "Composite"}, {"value": "subcarrier", "label": "Subcarrier"}], "description": "Chooses the analog signal format for the VGA/IO-board output. This matters for CRTs, component cables, and external analog converters."},
+    {"key": "ypbpr", "label": "Legacy YPbPr toggle", "category": "Analog and CRT", "type": "checkbox", "description": "Older MiSTer.ini files used this for component output. Prefer VGA output mode on current setups, but this remains available for compatibility."},
+    {"key": "ntsc_mode", "label": "NTSC composite mode", "category": "Analog and CRT", "type": "select", "options": [{"value": "0", "label": "Normal NTSC"}, {"value": "1", "label": "PAL-60"}, {"value": "2", "label": "PAL-M"}], "description": "Changes color encoding for S-Video or composite output. Only use it when working with analog video gear."},
+    {"key": "composite_sync", "label": "Composite sync on VGA", "category": "Analog and CRT", "type": "checkbox", "description": "Combines sync onto the HSync line for equipment that expects composite sync. CRT monitors and RGB scalers may need this."},
+    {"key": "vga_scaler", "label": "Scaler on VGA", "category": "Analog and CRT", "type": "checkbox", "description": "Routes the scaler to VGA output instead of raw core timings. Use it for VGA monitors or scalers that need a stable PC-like resolution."},
+    {"key": "vga_sog", "label": "Sync on green", "category": "Analog and CRT", "type": "checkbox", "description": "Enables sync-on-green for compatible analog IO boards and displays. Only enable this if your monitor or cable chain explicitly requires it."},
+    {"key": "fb_size", "label": "Framebuffer size", "category": "Menu and OSD", "type": "select", "options": [{"value": "0", "label": "Automatic"}, {"value": "1", "label": "Full size"}, {"value": "2", "label": "Half size"}, {"value": "4", "label": "Quarter size"}], "description": "Controls menu framebuffer memory usage. Automatic is best unless you are diagnosing menu performance or memory pressure."},
+    {"key": "fb_terminal", "label": "Framebuffer terminal", "category": "Menu and OSD", "type": "checkbox", "description": "Keeps the framebuffer terminal available. Most users leave this enabled because it helps with diagnostics and scripts."},
+    {"key": "osd_timeout", "label": "OSD timeout", "category": "Menu and OSD", "type": "text", "description": "Sets how long the menu OSD remains visible before fading or hiding. Use 0 if you never want it to time out."},
+    {"key": "osd_rotate", "label": "OSD rotation", "category": "Menu and OSD", "type": "select", "options": [{"value": "0", "label": "No rotation"}, {"value": "1", "label": "Rotate right"}, {"value": "2", "label": "Rotate left"}], "description": "Rotates the on-screen display. This is useful for vertical cabinets, rotated monitors, or specialty arcade builds."},
+    {"key": "video_off", "label": "Menu video blank timeout", "category": "Menu and OSD", "type": "text", "description": "Blanks the menu output after a period of inactivity. Use it to reduce burn-in risk on OLEDs or arcade monitors."},
+    {"key": "video_off_hdmi", "label": "Power down HDMI when blanked", "category": "Menu and OSD", "type": "checkbox", "description": "Lets the display sleep when menu video blanking triggers. Useful for TVs, but disable it if your capture device or monitor reconnects slowly."},
+    {"key": "menu_pal", "label": "PAL menu mode", "category": "Menu and OSD", "type": "checkbox", "description": "Runs the menu core in PAL timing. This is mainly for PAL displays or regional CRT setups."},
+    {"key": "logo", "label": "Show MiSTer logo", "category": "Menu and OSD", "type": "checkbox", "description": "Shows or hides the MiSTer logo in the menu core. This is a cosmetic choice for clean cabinets or custom themes."},
+    {"key": "lookahead", "label": "Menu list lookahead", "category": "Menu and OSD", "type": "text", "description": "Scrolls lists earlier as the cursor approaches the top or bottom. Increase it if long game lists feel cramped."},
+    {"key": "rbf_hide_datecode", "label": "Hide core date codes", "category": "Menu and OSD", "type": "checkbox", "description": "Hides build dates from core file names in menus. Useful when you want cleaner lists and do not need to compare core versions at a glance."},
+    {"key": "recents", "label": "Recent items menu", "category": "Boot and navigation", "type": "checkbox", "description": "Tracks recently opened files and mounted media. It makes repeated play faster, but it writes to the SD card whenever content is loaded."},
+    {"key": "bootcore", "label": "Autoboot core", "category": "Boot and navigation", "type": "text", "description": "Starts a specific core, the last core, or an exact core automatically after boot. Useful for dedicated cabinets or family-friendly single-system setups."},
+    {"key": "bootcore_timeout", "label": "Autoboot delay", "category": "Boot and navigation", "type": "text", "description": "Adds a countdown before autobooting the selected core. Set a delay when you still want time to interrupt boot and open the menu."},
+    {"key": "bootscreen", "label": "Core boot screens", "category": "Boot and navigation", "type": "checkbox", "description": "Controls boot screens for cores that support it. Disable when you prefer faster or cleaner startup."},
+    {"key": "key_menu_as_rgui", "label": "Menu key as right GUI", "category": "Input", "type": "checkbox", "description": "Maps the menu key to right GUI in cores such as Minimig. This is mostly for Amiga keyboard layouts and Keyrah-style setups."},
+    {"key": "reset_combo", "label": "Reset key combo", "category": "Input", "type": "select", "options": [{"value": "0", "label": "LCtrl + LAlt + RAlt"}, {"value": "1", "label": "LCtrl + LGUI + RGUI"}, {"value": "2", "label": "LCtrl + LAlt + Del"}, {"value": "3", "label": "Legacy combo"}], "description": "Defines the keyboard shortcut that emulates the USER/reset button. Pick the combo that does not conflict with your keyboard or cabinet controls."},
+    {"key": "controller_info", "label": "Controller info overlay", "category": "Input", "type": "text", "description": "Shows controller button mapping briefly after the first button press. Keep it on while setting up controllers, then reduce or disable it for a cleaner experience."},
+    {"key": "jamma_vid", "label": "JAMMA primary VID", "category": "Input", "type": "text", "description": "Identifies a JAMMA/J-PAC/I-PAC style controller interface for automatic player mapping. Only set this for arcade cabinets with known USB VID/PID values."},
+    {"key": "jamma_pid", "label": "JAMMA primary PID", "category": "Input", "type": "text", "description": "Pairs with JAMMA primary VID to map cabinet controls predictably. Leave it alone unless you know the device PID."},
+    {"key": "jamma2_vid", "label": "JAMMA secondary VID", "category": "Input", "type": "text", "description": "Optional second cabinet controller interface for players 3 and 4. Useful for larger arcade builds."},
+    {"key": "jamma2_pid", "label": "JAMMA secondary PID", "category": "Input", "type": "text", "description": "Pairs with JAMMA secondary VID for multi-player cabinet wiring. Leave default unless your second encoder is known."},
+    {"key": "no_merge_vid", "label": "Do not merge VID", "category": "Input", "type": "text", "description": "Stops MiSTer from merging devices with a matching vendor ID. Use this when only player one works because multiple controllers are being treated as one."},
+    {"key": "no_merge_pid", "label": "Do not merge PID", "category": "Input", "type": "text", "description": "Narrows no-merge behavior to a specific product ID. Leave empty if all devices from the vendor should stay separate."},
+    {"key": "sniper_mode", "label": "Mouse sniper mode behavior", "category": "Input", "type": "checkbox", "description": "Swaps mouse emulation speed behavior between normal and sniper modes. Useful for cores where analog aiming feels reversed or awkward."},
+    {"key": "mouse_throttle", "label": "Mouse throttle", "category": "Input", "type": "text", "description": "Divides mouse speed for very sensitive mice or adapters. Increase it if pointer movement is too fast in mouse-driven cores."},
+    {"key": "spinner_vid", "label": "Spinner mouse VID", "category": "Input", "type": "text", "description": "Treats a specific mouse X axis as a spinner or paddle. This is for arcade controls and specialty input devices."},
+    {"key": "spinner_pid", "label": "Spinner mouse PID", "category": "Input", "type": "text", "description": "Pairs with spinner VID to identify the mouse or adapter. Use FFFF/FFFF only when every mouse should act as a spinner."},
+    {"key": "spinner_throttle", "label": "Spinner throttle", "category": "Input", "type": "text", "description": "Adjusts spinner sensitivity and direction. Negative values reverse direction, higher values slow the spinner down."},
+    {"key": "debug", "label": "Debug logging", "category": "Advanced system", "type": "checkbox", "description": "Enables additional MiSTer debug messages. Use it temporarily while troubleshooting; leave it off for normal use."},
+    {"key": "forced_scandoubler", "label": "Force scandoubler", "category": "Advanced system", "type": "checkbox", "description": "Forces scandoubler behavior on VGA output where supported by cores. This is for display compatibility experiments, not a normal HDMI setting."},
+    {"key": "shared_folder", "label": "Shared folder path", "category": "Advanced system", "type": "text", "description": "Sets a custom shared folder for cores that support one, such as Minimig or ao486. The path must exist before the core starts."},
+    {"key": "browse_expand", "label": "Expand long filenames", "category": "Advanced system", "type": "checkbox", "description": "Controls whether long filenames can use a second line in file lists. Disable it if you prefer denser menus."},
+    {"key": "font", "label": "Custom menu font", "category": "Advanced system", "type": "text", "description": "Loads a custom 8x8 bitmap font. This is for theme builders and cabinet polish rather than normal setup."},
+    {"key": "keyrah_mode", "label": "Keyrah VID/PID mode", "category": "Advanced system", "type": "text", "description": "Applies special key translation for Keyrah-style keyboard adapters. Set this only when using supported retro keyboard hardware."},
 ]
 
 
@@ -507,6 +529,15 @@ class SmbRequest(BaseModel):
 
 class ScriptRunRequest(BaseModel):
     key: str
+
+
+class ScriptsConfigRequest(BaseModel):
+    values: dict[str, Any]
+
+
+class ExtraActionRequest(BaseModel):
+    key: str
+    action: str = Field(pattern="^(install|uninstall)$")
 
 
 class RemoteCommandRequest(BaseModel):
@@ -855,7 +886,12 @@ def ini_schema(path: str = "MiSTer.ini") -> dict[str, Any]:
         setting["value"] = raw
         setting["enabled"] = raw not in {"", "0", "false", "False", "no", "No"} if setting["type"] == "checkbox" else raw
         settings.append(setting)
-    return {"path": ini["path"], "settings": settings, "raw": ini["text"]}
+    categories = []
+    for setting in settings:
+        category = setting.get("category", "General")
+        if category not in categories:
+            categories.append(category)
+    return {"path": ini["path"], "categories": categories, "settings": settings, "raw": ini["text"]}
 
 
 @app.post("/api/ini/settings")
@@ -891,6 +927,34 @@ def scripts_status() -> dict[str, Any]:
     except Exception as exc:
         return {"error": str(exc)}
     return {}
+
+
+@app.get("/api/scripts/config")
+def scripts_config() -> dict[str, Any]:
+    try:
+        from core.update_all_config import load_update_all_config, load_update_all_config_local
+
+        if is_offline():
+            values = load_update_all_config_local(str(require_sd_root()))
+        else:
+            values = load_update_all_config(require_connected())
+        return {"available": True, "values": values}
+    except Exception as exc:
+        return {"available": False, "values": {}, "error": str(exc)}
+
+
+@app.post("/api/scripts/config")
+def save_scripts_config(req: ScriptsConfigRequest) -> dict[str, Any]:
+    try:
+        from core.update_all_config import save_update_all_config, save_update_all_config_local
+
+        if is_offline():
+            save_update_all_config_local(str(require_sd_root()), req.values)
+        else:
+            save_update_all_config(require_connected(), req.values)
+        return scripts_config()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 SCRIPT_COMMANDS = {
@@ -996,6 +1060,32 @@ def wallpapers_status() -> dict[str, Any]:
     return {"count": int((out or "0").strip() or "0"), "path": "/media/fat/wallpapers"}
 
 
+@app.post("/api/wallpapers/upload")
+async def upload_wallpaper(file: UploadFile = File(...)) -> dict[str, Any]:
+    name = PurePosixPath(file.filename or "").name
+    suffix = Path(name).suffix.lower()
+    if suffix not in {".jpg", ".jpeg", ".png"}:
+        raise HTTPException(status_code=400, detail="Upload a JPG, JPEG, or PNG wallpaper file")
+    data = await file.read()
+    if len(data) > 25 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Wallpaper file is too large")
+    if is_offline():
+        root = require_sd_root()
+        dest = root / "wallpapers" / name
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(data)
+    else:
+        conn = require_connected()
+        conn.run_command("mkdir -p /media/fat/wallpapers")
+        sftp = conn.client.open_sftp()
+        try:
+            with sftp.open(f"/media/fat/wallpapers/{name}", "wb") as handle:
+                handle.write(data)
+        finally:
+            sftp.close()
+    return {"uploaded": name, "size": len(data), "status": wallpapers_status()}
+
+
 @app.get("/api/extras/status")
 def extras_status() -> dict[str, Any]:
     checks = {
@@ -1012,6 +1102,58 @@ def extras_status() -> dict[str, Any]:
         name: "YES" in conn.run_command(f'test -e "{path}" && echo YES || echo NO')
         for name, path in checks.items()
     }
+
+
+EXTRA_ACTIONS: dict[str, dict[str, str]] = {
+    "zaparoo_launcher": {
+        "install": "install_or_update_zaparoo_launcher",
+        "install_local": "install_or_update_zaparoo_launcher_local",
+        "uninstall": "uninstall_zaparoo_launcher",
+        "uninstall_local": "uninstall_zaparoo_launcher_local",
+        "module": "core.extras_zaparoo_launcher",
+    },
+    "ra_cores": {
+        "install": "install_or_update_ra_cores",
+        "install_local": "install_or_update_ra_cores_local",
+        "uninstall": "uninstall_ra_cores",
+        "uninstall_local": "uninstall_ra_cores_local",
+        "module": "core.extras_ra_cores",
+    },
+    "sonic_mania": {
+        "install": "install_or_update_sonic_mania",
+        "install_local": "install_or_update_sonic_mania_local",
+        "uninstall": "uninstall_sonic_mania",
+        "uninstall_local": "uninstall_sonic_mania_local",
+        "module": "core.extras_sonic_mania",
+    },
+    "three_s_arm": {
+        "install": "install_or_update_3sx",
+        "install_local": "install_or_update_3sx_local",
+        "uninstall": "uninstall_3sx",
+        "uninstall_local": "uninstall_3sx_local",
+        "module": "core.extras_3s_arm",
+    },
+}
+
+
+@app.post("/api/extras/action")
+def extras_action(req: ExtraActionRequest) -> dict[str, Any]:
+    if req.key not in EXTRA_ACTIONS:
+        raise HTTPException(status_code=404, detail="Unknown extra")
+    spec = EXTRA_ACTIONS[req.key]
+
+    def work(job: Job) -> None:
+        import importlib
+
+        module = importlib.import_module(spec["module"])
+        if is_offline():
+            fn = getattr(module, spec[f"{req.action}_local"])
+            fn(str(require_sd_root()), job.log)
+        else:
+            fn = getattr(module, spec[req.action])
+            fn(require_connected(), job.log)
+
+    return start_job(f"extra:{req.key}:{req.action}", work).snapshot()
 
 
 @app.get("/api/retroachievements/config")
